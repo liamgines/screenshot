@@ -13,7 +13,16 @@
 #define SCREEN_HANDLE NULL
 #define SCREEN_AREA (SCREEN_WIDTH * SCREEN_HEIGHT)
 
-static uint32_t *screenPixels = NULL;
+#pragma pack(push, 1)
+typedef struct {
+	uint8_t blue;
+	uint8_t green;
+	uint8_t red;
+	uint8_t padding;
+} rgb32;
+#pragma pack(pop)
+
+static rgb32 *screenPixels = NULL;
 static BITMAPINFO info = { 0 };
 static int SCREEN_WIDTH = 0;
 static int SCREEN_HEIGHT = 0;
@@ -75,7 +84,7 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	info.bmiHeader = header;
 
 	// Capture instance of screen pixels
-	screenPixels = malloc(sizeof(uint32_t) * SCREEN_AREA);
+	screenPixels = malloc(sizeof(rgb32) * SCREEN_AREA);
 	int scanLinesCopied = GetDIBits(memory, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
 
 	// Clean up
@@ -93,6 +102,13 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	HWND window = CreateWindow(windowClass.lpszClassName, L"", WS_POPUP,
 				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
+
+	rgb32 color;
+	for (int i = 0; i < SCREEN_AREA; i++) {
+		screenPixels[i].red = 0;
+		// screenPixels[i].green = 0;
+		screenPixels[i].blue = 0;
+	}
 
 	ShowWindow(window, visibility);
 	MSG message;
