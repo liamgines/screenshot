@@ -10,7 +10,14 @@
 #endif
 
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
-	return DefWindowProc(window, message, wParameter, lParameter);
+	switch (message) {
+		case WM_DESTROY:
+			PostQuitMessage(0);
+			return 0;
+
+		default:
+			return DefWindowProc(window, message, wParameter, lParameter);
+	}
 }
 
 // Create a window!
@@ -22,9 +29,21 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	windowClass.lpfnWndProc = WindowProcedure;
 	RegisterClass(&windowClass);
 
-	CreateWindow(windowClass.lpszClassName, L"Window", WS_OVERLAPPEDWINDOW,
+	HWND window = CreateWindow(windowClass.lpszClassName, L"Window", WS_OVERLAPPEDWINDOW,
 				 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 				 NULL, NULL, appInstance, NULL);
+
+	ShowWindow(window, visibility);
+	MSG message;
+	BOOL messageReturned;
+	while ((messageReturned = GetMessage(&message, window, 0, 0)) != 0) {
+		if (messageReturned == -1) {
+			// TODO: Handle error and possibly exit
+			break;
+		}
+		TranslateMessage(&message);
+		DispatchMessage(&message);
+	}
 	errorCode = GetLastError();
 	return 0;
 }
