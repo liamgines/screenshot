@@ -12,8 +12,22 @@
 
 #define SCREEN_HANDLE NULL
 
+int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
+	switch (wParameter) {
+		case VK_ESCAPE:
+			DestroyWindow(window);
+			return 0;
+
+		default:
+			return DefWindowProc(window, message, wParameter, lParameter);
+	}
+}
+
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (message) {
+		case WM_KEYUP:
+			return HandleKeyUp(window, message, wParameter, lParameter);
+
 		case WM_DESTROY:
 			PostQuitMessage(0);
 			return 0;
