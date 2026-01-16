@@ -90,8 +90,8 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	windowClass.lpfnWndProc = WindowProcedure;
 	RegisterClass(&windowClass);
 
-	HWND window = CreateWindow(windowClass.lpszClassName, L"Window", WS_OVERLAPPEDWINDOW,
-				 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+	HWND window = CreateWindow(windowClass.lpszClassName, L"", WS_POPUP,
+				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
 
 	ShowWindow(window, visibility);
