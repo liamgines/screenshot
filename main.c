@@ -11,6 +11,12 @@
 #endif
 
 #define SCREEN_HANDLE NULL
+#define SCREEN_AREA (SCREEN_WIDTH * SCREEN_HEIGHT)
+
+static uint32_t *screenPixels = NULL;
+static BITMAPINFO info = { 0 };
+static int SCREEN_WIDTH = 0;
+static int SCREEN_HEIGHT = 0;
 
 int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
@@ -28,6 +34,13 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_KEYUP:
 			return HandleKeyUp(window, message, wParameter, lParameter);
 
+		case WM_PAINT:
+			PAINTSTRUCT paint;
+			HDC client = BeginPaint(window, &paint);
+			int scanLinesSet = SetDIBitsToDevice(client, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 0, 0, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
+			EndPaint(window, &paint);
+			return 0;
+
 		case WM_DESTROY:
 			PostQuitMessage(0);
 			return 0;
@@ -38,7 +51,39 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 }
 
 int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR commandLine, int visibility) {
-	int errorCode;
+	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
+	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
+
+	HDC screen = GetDC(SCREEN_HANDLE);
+	HDC memory = CreateCompatibleDC(screen);
+
+	// Create screen compatible bitmap and associate it with the memory device context
+	HBITMAP memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
+	HBITMAP previousMemoryBitmap = SelectObject(memory, memoryBitmap);
+
+	// Transfer color data from screen to memory
+	BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
+
+	// Specify format for the bitmap data to be returned
+	BITMAPINFOHEADER header = { 0 };
+	header.biSize = sizeof(header);
+	header.biWidth = SCREEN_WIDTH;
+	header.biHeight = -SCREEN_HEIGHT;
+	header.biPlanes = 1;
+	header.biBitCount = 32;
+	header.biCompression = BI_RGB;
+	info.bmiHeader = header;
+
+	// Capture instance of screen pixels
+	screenPixels = malloc(sizeof(uint32_t) * SCREEN_AREA);
+	int scanLinesCopied = GetDIBits(memory, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
+
+	// Clean up
+	ReleaseDC(SCREEN_HANDLE, screen);
+	assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);
+	DeleteDC(memory);
+	DeleteObject(memoryBitmap);
+
 	WNDCLASS windowClass = { 0 };
 	windowClass.hInstance = appInstance;
 	windowClass.lpszClassName = L"Window Class";
@@ -61,40 +106,6 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 		DispatchMessage(&message);
 	}
 
-	const int SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
-	const int SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
-	const int SCREEN_AREA = SCREEN_WIDTH * SCREEN_HEIGHT;
-
-	HDC screen = GetDC(SCREEN_HANDLE);
-	HDC memory = CreateCompatibleDC(screen);
-
-	// Create screen compatible bitmap and associate it with the memory device context
-	HBITMAP memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
-	HBITMAP previousMemoryBitmap = SelectObject(memory, memoryBitmap);
-
-	// Transfer color data from screen to memory
-	BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
-
-	// Specify format for the bitmap data to be returned
-	BITMAPINFO info = { 0 };
-	BITMAPINFOHEADER header = { 0 };
-	header.biSize = sizeof(header);
-	header.biWidth = SCREEN_WIDTH;
-	header.biHeight = -SCREEN_HEIGHT;
-	header.biPlanes = 1;
-	header.biBitCount = 32;
-	header.biCompression = BI_RGB;
-	info.bmiHeader = header;
-
-	// Capture instance of screen pixels
-	uint32_t *screenPixels = malloc(sizeof(uint32_t) * SCREEN_AREA);
-	int scanLinesCopied = GetDIBits(memory, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
-
-	// Clean up
-	ReleaseDC(SCREEN_HANDLE, screen);
-	assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);	
-	DeleteDC(memory);
-	DeleteObject(memoryBitmap);
 	free(screenPixels);
 
 	return 0;
