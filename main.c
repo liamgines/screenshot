@@ -1,5 +1,14 @@
 #include <windows.h>
 #include <assert.h>
+#include <windowsX.h>
+
+#define SWAP(TYPE, x, y) \
+do {					 \
+	TYPE temp;			 \
+	temp = x;			 \
+	x = y;				 \
+	y = temp;			 \
+} while (0)
 
 #ifndef UNICODE
 #define UNICODE
@@ -14,7 +23,14 @@
 static int SCREEN_WIDTH = 0;
 static int SCREEN_HEIGHT = 0;
 static RECT screenRectangle = { 0 };
+static RECT selectionRectangle = { 0 };
 static HDC memory;
+
+RECT GetNormalizedRectangle(RECT rectangle) {
+	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
+	if (rectangle.bottom - rectangle.top < 0) SWAP(LONG, rectangle.bottom, rectangle.top);
+	return rectangle;
+}
 
 int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
@@ -32,19 +48,47 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_KEYUP:
 			return HandleKeyUp(window, message, wParameter, lParameter);
 
+		case WM_LBUTTONDOWN:
+			selectionRectangle.left = GET_X_LPARAM(lParameter);
+			selectionRectangle.top = GET_Y_LPARAM(lParameter);
+			selectionRectangle.right = selectionRectangle.left;
+			selectionRectangle.bottom = selectionRectangle.top;
+			BOOL repaint = InvalidateRect(window, NULL, TRUE);
+			return 0;
+
+		case WM_MOUSEMOVE:
+			if (wParameter == MK_LBUTTON) {
+				selectionRectangle.right = GET_X_LPARAM(lParameter);
+				selectionRectangle.bottom = GET_Y_LPARAM(lParameter);
+				BOOL repaint = InvalidateRect(window, NULL, TRUE);
+			}
+			return 0;
+
 		case WM_PAINT:
 			PAINTSTRUCT paint;
 			HDC client = BeginPaint(window, &paint);
-			HBRUSH backgroundColor = CreateSolidBrush(RGB(0, 0, 0));
-			assert(FillRect(client, &screenRectangle, backgroundColor));
-			DeleteObject(backgroundColor);
 
+			HDC scene = CreateCompatibleDC(client);
+			HBITMAP sceneBitmap = CreateCompatibleBitmap(client, SCREEN_WIDTH, SCREEN_HEIGHT);
+			HBITMAP previousSceneBitmap = SelectObject(scene, sceneBitmap);
+			HBRUSH backgroundColor = CreateSolidBrush(RGB(0, 0, 0));
+			assert(FillRect(scene, &screenRectangle, backgroundColor));
+			DeleteObject(backgroundColor);
 			BLENDFUNCTION blend = { 0 };
 			blend.BlendOp = AC_SRC_OVER;
 			blend.SourceConstantAlpha = 128;
 			blend.AlphaFormat = AC_SRC_ALPHA;
-			BOOL blended = GdiAlphaBlend(client, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, blend);
+			BOOL blended = GdiAlphaBlend(scene, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, blend);
 
+			RECT displayRectangle = GetNormalizedRectangle(selectionRectangle);
+			BitBlt(scene, displayRectangle.left, displayRectangle.top, displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
+				   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
+
+			BitBlt(client, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, scene, 0, 0, SRCCOPY);
+
+			assert(SelectObject(scene, previousSceneBitmap) == sceneBitmap);
+			DeleteDC(scene);
+			DeleteObject(sceneBitmap);
 			EndPaint(window, &paint);
 			return 0;
 
