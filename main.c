@@ -1,11 +1,9 @@
 #include <windows.h>
 #include <assert.h>
-#include <stdint.h>
 
 #ifndef UNICODE
 #define UNICODE
 #endif
-
 #ifndef _UNICODE
 #define _UNICODE
 #endif
@@ -13,19 +11,10 @@
 #define SCREEN_HANDLE NULL
 #define SCREEN_AREA (SCREEN_WIDTH * SCREEN_HEIGHT)
 
-#pragma pack(push, 1)
-typedef struct {
-	uint8_t blue;
-	uint8_t green;
-	uint8_t red;
-	uint8_t padding;
-} rgb32;
-#pragma pack(pop)
-
-static rgb32 *screenPixels = NULL;
-static BITMAPINFO info = { 0 };
 static int SCREEN_WIDTH = 0;
 static int SCREEN_HEIGHT = 0;
+static RECT screenRectangle = { 0 };
+static HDC memory;
 
 int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
@@ -46,7 +35,16 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_PAINT:
 			PAINTSTRUCT paint;
 			HDC client = BeginPaint(window, &paint);
-			int scanLinesSet = SetDIBitsToDevice(client, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 0, 0, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
+			HBRUSH backgroundColor = CreateSolidBrush(RGB(0, 0, 0));
+			assert(FillRect(client, &screenRectangle, backgroundColor));
+			DeleteObject(backgroundColor);
+
+			BLENDFUNCTION blend = { 0 };
+			blend.BlendOp = AC_SRC_OVER;
+			blend.SourceConstantAlpha = 128;
+			blend.AlphaFormat = AC_SRC_ALPHA;
+			BOOL blended = GdiAlphaBlend(client, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, blend);
+
 			EndPaint(window, &paint);
 			return 0;
 
@@ -63,8 +61,14 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
 
+	screenRectangle.left = 0;
+	screenRectangle.top = 0;
+	// "By convention, the right and bottom edges of the rectangle are normally considered exclusive."
+	screenRectangle.right = SCREEN_WIDTH;
+	screenRectangle.bottom = SCREEN_HEIGHT;
+
 	HDC screen = GetDC(SCREEN_HANDLE);
-	HDC memory = CreateCompatibleDC(screen);
+	memory = CreateCompatibleDC(screen);
 
 	// Create screen compatible bitmap and associate it with the memory device context
 	HBITMAP memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -73,25 +77,8 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	// Transfer color data from screen to memory
 	BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
 
-	// Specify format for the bitmap data to be returned
-	BITMAPINFOHEADER header = { 0 };
-	header.biSize = sizeof(header);
-	header.biWidth = SCREEN_WIDTH;
-	header.biHeight = -SCREEN_HEIGHT;
-	header.biPlanes = 1;
-	header.biBitCount = 32;
-	header.biCompression = BI_RGB;
-	info.bmiHeader = header;
-
-	// Capture instance of screen pixels
-	screenPixels = malloc(sizeof(rgb32) * SCREEN_AREA);
-	int scanLinesCopied = GetDIBits(memory, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
-
 	// Clean up
 	ReleaseDC(SCREEN_HANDLE, screen);
-	assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);
-	DeleteDC(memory);
-	DeleteObject(memoryBitmap);
 
 	WNDCLASS windowClass = { 0 };
 	windowClass.hInstance = appInstance;
@@ -102,13 +89,6 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	HWND window = CreateWindow(windowClass.lpszClassName, L"", WS_POPUP,
 				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
-
-	rgb32 color;
-	for (int i = 0; i < SCREEN_AREA; i++) {
-		screenPixels[i].red = 0;
-		// screenPixels[i].green = 0;
-		screenPixels[i].blue = 0;
-	}
 
 	ShowWindow(window, visibility);
 	MSG message;
@@ -122,7 +102,10 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 		DispatchMessage(&message);
 	}
 
-	free(screenPixels);
+	// Clean up
+	assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);
+	DeleteDC(memory);
+	DeleteObject(memoryBitmap);
 
 	return 0;
 }
