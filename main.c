@@ -32,6 +32,26 @@ RECT GetNormalizedRectangle(RECT rectangle) {
 	return rectangle;
 }
 
+POINT GetPoint(LPARAM lParameter) {
+	POINT point = { .x = GET_X_LPARAM(lParameter), .y = GET_Y_LPARAM(lParameter) };
+	return point;
+}
+
+POINT GetDifference(POINT p1, POINT p2) {
+	POINT difference;
+	difference.x = p1.x - p2.x;
+	difference.y = p1.y - p2.y;
+	return difference;
+}
+
+RECT TranslateRectangle(RECT rectangle, POINT translation) {
+	rectangle.left += translation.x;
+	rectangle.top += translation.y;
+	rectangle.right += translation.x;
+	rectangle.bottom += translation.y;
+	return rectangle;
+}
+
 int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
 		case VK_ESCAPE:
@@ -44,25 +64,47 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 }
 
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
+	static BOOL drag = FALSE;
+	static POINT previousPosition;
+	RECT displayRectangle = GetNormalizedRectangle(selectionRectangle);
 	switch (message) {
 		case WM_KEYUP:
 			return HandleKeyUp(window, message, wParameter, lParameter);
 
-		case WM_LBUTTONDOWN:
-			selectionRectangle.left = GET_X_LPARAM(lParameter);
-			selectionRectangle.top = GET_Y_LPARAM(lParameter);
-			selectionRectangle.right = selectionRectangle.left;
-			selectionRectangle.bottom = selectionRectangle.top;
-			BOOL repaint = InvalidateRect(window, NULL, TRUE);
-			return 0;
-
-		case WM_MOUSEMOVE:
-			if (wParameter == MK_LBUTTON) {
-				selectionRectangle.right = GET_X_LPARAM(lParameter);
-				selectionRectangle.bottom = GET_Y_LPARAM(lParameter);
+		case WM_LBUTTONDOWN: {
+			POINT point = GetPoint(lParameter);
+			if (PtInRect(&displayRectangle, point)) {
+				drag = TRUE;
+			}
+			else {
+				selectionRectangle.left = point.x;
+				selectionRectangle.top = point.y;
+				selectionRectangle.right = selectionRectangle.left;
+				selectionRectangle.bottom = selectionRectangle.top;
 				BOOL repaint = InvalidateRect(window, NULL, TRUE);
 			}
 			return 0;
+		}
+
+		case WM_MOUSEMOVE: {
+			POINT point = GetPoint(lParameter);
+			if (wParameter == MK_LBUTTON && !drag) {
+				selectionRectangle.right = point.x;
+				selectionRectangle.bottom = point.y;
+				BOOL repaint = InvalidateRect(window, NULL, TRUE);
+			}
+			else if (wParameter == MK_LBUTTON && drag) {
+				POINT difference = GetDifference(point, previousPosition);
+				selectionRectangle = TranslateRectangle(selectionRectangle, difference);
+				BOOL repaint = InvalidateRect(window, NULL, TRUE);
+			}
+			previousPosition = point;
+			return 0;
+		}
+
+		case WM_LBUTTONUP:
+			drag = FALSE;
+
 
 		case WM_PAINT:
 			PAINTSTRUCT paint;
@@ -80,7 +122,6 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			blend.AlphaFormat = AC_SRC_ALPHA;
 			BOOL blended = GdiAlphaBlend(scene, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, blend);
 
-			RECT displayRectangle = GetNormalizedRectangle(selectionRectangle);
 			BitBlt(scene, displayRectangle.left, displayRectangle.top, displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
 				   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
 
