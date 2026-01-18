@@ -132,6 +132,32 @@ Anchors GetAnchors(RECT r) {
 	return anchors;
 }
 
+typedef struct {
+	RECT topLeft;
+	RECT topMid;
+	RECT topRight;
+
+	RECT midLeft;
+	RECT midRight;
+
+	RECT bottomLeft;
+	RECT bottomMid;
+	RECT bottomRight;
+} AnchorBoxes;
+
+AnchorBoxes GetAnchorBoxes(Anchors anchors) {
+	AnchorBoxes boxes;
+	boxes.topLeft = GetBox(anchors.topLeft);
+	boxes.topMid = GetBox(anchors.topMid);
+	boxes.topRight = GetBox(anchors.topRight);
+	boxes.midLeft = GetBox(anchors.midLeft);
+	boxes.midRight = GetBox(anchors.midRight);
+	boxes.bottomLeft = GetBox(anchors.bottomLeft);
+	boxes.bottomMid = GetBox(anchors.bottomMid);
+	boxes.bottomRight = GetBox(anchors.bottomRight);
+	return boxes;
+}
+
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	static BOOL drag = FALSE;
 	static POINT previousPosition;
@@ -148,11 +174,40 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			POINT point = GetPoint(lParameter);
 			BOOL cursorInSelection = PtInRect(&displayRectangle, point);
 
-			RECT topLeft = GetBox(anchors.topLeft);
-			if (PtInRect(&topLeft, point)) {
+			AnchorBoxes boxes = GetAnchorBoxes(anchors);
+			if (PtInRect(&boxes.topLeft, point)) {
 				selectedXCorner = &selectionRectangle.left;
 				selectedYCorner = &selectionRectangle.top;
 			}
+			else if (PtInRect(&boxes.topMid, point)) {
+				selectedXCorner = NULL;
+				selectedYCorner = &selectionRectangle.top;
+			}
+			else if (PtInRect(&boxes.topRight, point)) {
+				selectedXCorner = &selectionRectangle.right;
+				selectedYCorner = &selectionRectangle.top;
+			}
+			else if (PtInRect(&boxes.midLeft, point)) {
+				selectedXCorner = &selectionRectangle.left;
+				selectedYCorner = NULL;
+			}
+			else if (PtInRect(&boxes.midRight, point)) {
+				selectedXCorner = &selectionRectangle.right;
+				selectedYCorner = NULL;
+			}
+			else if (PtInRect(&boxes.bottomLeft, point)) {
+				selectedXCorner = &selectionRectangle.left;
+				selectedYCorner = &selectionRectangle.bottom;
+			}
+			else if (PtInRect(&boxes.bottomMid, point)) {
+				selectedXCorner = NULL;
+				selectedYCorner = &selectionRectangle.bottom;
+			}
+			else if (PtInRect(&boxes.bottomRight, point)) {
+				selectedXCorner = &selectionRectangle.right;
+				selectedYCorner = &selectionRectangle.bottom;
+			}
+
 			// Reset selection
 			else if (!cursorInSelection) {
 				selectionRectangle.left = point.x;
