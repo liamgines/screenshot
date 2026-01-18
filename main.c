@@ -171,7 +171,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	static POINT previousPosition;
 	static LONG *selectedXCorner = NULL;
 	static LONG *selectedYCorner = NULL;
-	RECT displayRectangle = GetNormalizedRectangle(selectionRectangle);
+	RECT displayRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 	Anchors anchors = GetAnchors(displayRectangle);
 
 	switch (message) {
@@ -243,7 +243,6 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			else if (wParameter == MK_LBUTTON && drag) {
 				POINT difference = GetDifference(point, previousPosition);
 				selectionRectangle = TranslateRectangle(selectionRectangle, difference);
-				selectionRectangle = GetTruncatedRectangle(selectionRectangle);
 				BOOL repaint = InvalidateRect(window, NULL, TRUE);
 			}
 			previousPosition = point;
@@ -252,7 +251,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_LBUTTONUP:
 			// Normalize rectangle on release to ensure that the corner coordinates are consistent for subsequent rectangle transformations
-			selectionRectangle = GetNormalizedRectangle(selectionRectangle);
+			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 			drag = FALSE;
 
 
