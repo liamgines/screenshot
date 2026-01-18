@@ -158,6 +158,14 @@ AnchorBoxes GetAnchorBoxes(Anchors anchors) {
 	return boxes;
 }
 
+RECT GetTruncatedRectangle(RECT r) {
+	if (r.left < 0) r.left = 0;
+	if (r.top < 0) r.top = 0;
+	if (r.right > SCREEN_WIDTH) r.right = SCREEN_WIDTH;
+	if (r.bottom > SCREEN_HEIGHT) r.bottom = SCREEN_HEIGHT;
+	return r;
+}
+
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	static BOOL drag = FALSE;
 	static POINT previousPosition;
@@ -235,6 +243,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			else if (wParameter == MK_LBUTTON && drag) {
 				POINT difference = GetDifference(point, previousPosition);
 				selectionRectangle = TranslateRectangle(selectionRectangle, difference);
+				selectionRectangle = GetTruncatedRectangle(selectionRectangle);
 				BOOL repaint = InvalidateRect(window, NULL, TRUE);
 			}
 			previousPosition = point;
