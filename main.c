@@ -10,6 +10,8 @@ do {					 \
 	y = temp;			 \
 } while (0)
 
+#define MIDPOINT(x, y) (((x) + (y)) / 2)
+
 #ifndef UNICODE
 #define UNICODE
 #endif
@@ -19,6 +21,7 @@ do {					 \
 
 #define SCREEN_HANDLE NULL
 #define SCREEN_AREA (SCREEN_WIDTH * SCREEN_HEIGHT)
+#define BOX_SIZE 6
 
 static int SCREEN_WIDTH = 0;
 static int SCREEN_HEIGHT = 0;
@@ -61,6 +64,30 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 		default:
 			return DefWindowProc(window, message, wParameter, lParameter);
 	}
+}
+
+RECT GetBox(POINT p) {
+	RECT box = { .left = p.x - BOX_SIZE/2, .top = p.y - BOX_SIZE/2, .right = p.x + BOX_SIZE/2, .bottom = p.y + BOX_SIZE/2};
+	return box;
+}
+
+void PaintAnchor(HDC destination, LONG x, LONG y) {
+	HBRUSH boxColor = CreateSolidBrush(RGB(0, 255, 0));
+	POINT p = { .x = x, .y = y };
+	RECT box = GetBox(p);
+	FillRect(destination, &box, boxColor);
+	DeleteObject(boxColor);
+}
+
+LONG GetArea(RECT r) {
+	LONG w = r.right - r.left;
+	LONG h = r.bottom - r.top;
+	return w * h;
+}
+
+BOOL HasArea(RECT r) {
+	if (GetArea(r) != 0) return TRUE;
+	return FALSE;
 }
 
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
@@ -114,19 +141,34 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			HBITMAP sceneBitmap = CreateCompatibleBitmap(client, SCREEN_WIDTH, SCREEN_HEIGHT);
 			HBITMAP previousSceneBitmap = SelectObject(scene, sceneBitmap);
 			HBRUSH backgroundColor = CreateSolidBrush(RGB(0, 0, 0));
+
 			assert(FillRect(scene, &screenRectangle, backgroundColor));
-			DeleteObject(backgroundColor);
 			BLENDFUNCTION blend = { 0 };
 			blend.BlendOp = AC_SRC_OVER;
 			blend.SourceConstantAlpha = 128;
 			blend.AlphaFormat = AC_SRC_ALPHA;
 			BOOL blended = GdiAlphaBlend(scene, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, blend);
 
-			BitBlt(scene, displayRectangle.left, displayRectangle.top, displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
-				   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
+			if (HasArea(displayRectangle)) {
+				BitBlt(scene, displayRectangle.left, displayRectangle.top, displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
+					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
+				// Paint anchor boxes
+				PaintAnchor(scene, displayRectangle.left, displayRectangle.top);
+				PaintAnchor(scene, displayRectangle.left, displayRectangle.bottom);
+				PaintAnchor(scene, displayRectangle.right, displayRectangle.top);
+				PaintAnchor(scene, displayRectangle.right, displayRectangle.bottom);
+
+				PaintAnchor(scene, MIDPOINT(displayRectangle.left, displayRectangle.right), displayRectangle.top);
+				PaintAnchor(scene, MIDPOINT(displayRectangle.left, displayRectangle.right), displayRectangle.bottom);
+
+				PaintAnchor(scene, displayRectangle.left, MIDPOINT(displayRectangle.top, displayRectangle.bottom));
+				PaintAnchor(scene, displayRectangle.right, MIDPOINT(displayRectangle.top, displayRectangle.bottom));
+			}
 
 			BitBlt(client, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, scene, 0, 0, SRCCOPY);
 
+			// Clean up
+			DeleteObject(backgroundColor);
 			assert(SelectObject(scene, previousSceneBitmap) == sceneBitmap);
 			DeleteDC(scene);
 			DeleteObject(sceneBitmap);
