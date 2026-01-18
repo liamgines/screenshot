@@ -71,9 +71,8 @@ RECT GetBox(POINT p) {
 	return box;
 }
 
-void PaintAnchor(HDC destination, LONG x, LONG y) {
+void PaintAnchor(HDC destination, POINT p) {
 	HBRUSH boxColor = CreateSolidBrush(RGB(0, 255, 0));
-	POINT p = { .x = x, .y = y };
 	RECT box = GetBox(p);
 	FillRect(destination, &box, boxColor);
 	DeleteObject(boxColor);
@@ -90,25 +89,83 @@ BOOL HasArea(RECT r) {
 	return FALSE;
 }
 
+typedef struct {
+	POINT topLeft;
+	POINT topMid;
+	POINT topRight;
+
+	POINT midLeft;
+	POINT midRight;
+
+	POINT bottomLeft;
+	POINT bottomMid;
+	POINT bottomRight;
+} Anchors;
+
+Anchors GetAnchors(RECT r) {
+	Anchors anchors;
+
+	anchors.topLeft.x = r.left;
+	anchors.topLeft.y = r.top;
+
+	anchors.topMid.x = MIDPOINT(r.left, r.right);
+	anchors.topMid.y = r.top;
+
+	anchors.topRight.x = r.right;
+	anchors.topRight.y = r.top;
+
+	anchors.midLeft.x = r.left;
+	anchors.midLeft.y = MIDPOINT(r.top, r.bottom);
+
+	anchors.midRight.x = r.right;
+	anchors.midRight.y = MIDPOINT(r.top, r.bottom);
+
+	anchors.bottomLeft.x = r.left;
+	anchors.bottomLeft.y = r.bottom;
+
+	anchors.bottomMid.x = MIDPOINT(r.left, r.right);
+	anchors.bottomMid.y = r.bottom;
+
+	anchors.bottomRight.x = r.right;
+	anchors.bottomRight.y = r.bottom;
+
+	return anchors;
+}
+
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	static BOOL drag = FALSE;
 	static POINT previousPosition;
+	static LONG *selectedXCorner = NULL;
+	static LONG *selectedYCorner = NULL;
 	RECT displayRectangle = GetNormalizedRectangle(selectionRectangle);
+	Anchors anchors = GetAnchors(displayRectangle);
+
 	switch (message) {
 		case WM_KEYUP:
 			return HandleKeyUp(window, message, wParameter, lParameter);
 
 		case WM_LBUTTONDOWN: {
 			POINT point = GetPoint(lParameter);
-			if (PtInRect(&displayRectangle, point)) {
-				drag = TRUE;
+			BOOL cursorInSelection = PtInRect(&displayRectangle, point);
+
+			RECT topLeft = GetBox(anchors.topLeft);
+			if (PtInRect(&topLeft, point)) {
+				selectedXCorner = &selectionRectangle.left;
+				selectedYCorner = &selectionRectangle.top;
 			}
-			else {
+			// Reset selection
+			else if (!cursorInSelection) {
 				selectionRectangle.left = point.x;
 				selectionRectangle.top = point.y;
 				selectionRectangle.right = selectionRectangle.left;
 				selectionRectangle.bottom = selectionRectangle.top;
+
+				selectedXCorner = &selectionRectangle.right;
+				selectedYCorner = &selectionRectangle.bottom;
 				BOOL repaint = InvalidateRect(window, NULL, TRUE);
+			}
+			else if (cursorInSelection) {
+				drag = TRUE;
 			}
 			return 0;
 		}
@@ -116,8 +173,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_MOUSEMOVE: {
 			POINT point = GetPoint(lParameter);
 			if (wParameter == MK_LBUTTON && !drag) {
-				selectionRectangle.right = point.x;
-				selectionRectangle.bottom = point.y;
+				if (selectedXCorner) *selectedXCorner = point.x;
+				if (selectedYCorner) *selectedYCorner = point.y;
 				BOOL repaint = InvalidateRect(window, NULL, TRUE);
 			}
 			else if (wParameter == MK_LBUTTON && drag) {
@@ -130,6 +187,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		}
 
 		case WM_LBUTTONUP:
+			// Normalize rectangle on release to ensure that the corner coordinates are consistent for subsequent rectangle transformations
+			selectionRectangle = GetNormalizedRectangle(selectionRectangle);
 			drag = FALSE;
 
 
@@ -152,17 +211,16 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			if (HasArea(displayRectangle)) {
 				BitBlt(scene, displayRectangle.left, displayRectangle.top, displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
 					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
+
 				// Paint anchor boxes
-				PaintAnchor(scene, displayRectangle.left, displayRectangle.top);
-				PaintAnchor(scene, displayRectangle.left, displayRectangle.bottom);
-				PaintAnchor(scene, displayRectangle.right, displayRectangle.top);
-				PaintAnchor(scene, displayRectangle.right, displayRectangle.bottom);
-
-				PaintAnchor(scene, MIDPOINT(displayRectangle.left, displayRectangle.right), displayRectangle.top);
-				PaintAnchor(scene, MIDPOINT(displayRectangle.left, displayRectangle.right), displayRectangle.bottom);
-
-				PaintAnchor(scene, displayRectangle.left, MIDPOINT(displayRectangle.top, displayRectangle.bottom));
-				PaintAnchor(scene, displayRectangle.right, MIDPOINT(displayRectangle.top, displayRectangle.bottom));
+				PaintAnchor(scene, anchors.topLeft);
+				PaintAnchor(scene, anchors.topMid);
+				PaintAnchor(scene, anchors.topRight);
+				PaintAnchor(scene, anchors.midLeft);
+				PaintAnchor(scene, anchors.midRight);
+				PaintAnchor(scene, anchors.bottomLeft);
+				PaintAnchor(scene, anchors.bottomMid);
+				PaintAnchor(scene, anchors.bottomRight);
 			}
 
 			BitBlt(client, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, scene, 0, 0, SRCCOPY);
