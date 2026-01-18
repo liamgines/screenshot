@@ -1,6 +1,11 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <assert.h>
 #include <windowsX.h>
+#include <stdint.h>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+#define VK_S 0x53
 
 #define SWAP(TYPE, x, y) \
 do {					 \
@@ -28,11 +33,20 @@ static int SCREEN_HEIGHT = 0;
 static RECT screenRectangle = { 0 };
 static RECT selectionRectangle = { 0 };
 static HDC memory;
+static HBITMAP memoryBitmap;
 
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
 	if (rectangle.bottom - rectangle.top < 0) SWAP(LONG, rectangle.bottom, rectangle.top);
 	return rectangle;
+}
+
+RECT GetTruncatedRectangle(RECT r) {
+	if (r.left < 0) r.left = 0;
+	if (r.top < 0) r.top = 0;
+	if (r.right > SCREEN_WIDTH) r.right = SCREEN_WIDTH;
+	if (r.bottom > SCREEN_HEIGHT) r.bottom = SCREEN_HEIGHT;
+	return r;
 }
 
 POINT GetPoint(LPARAM lParameter) {
@@ -55,11 +69,84 @@ RECT TranslateRectangle(RECT rectangle, POINT translation) {
 	return rectangle;
 }
 
+LONG GetWidth(RECT r) {
+	return r.right - r.left;
+}
+
+LONG GetHeight(RECT r) {
+	return r.bottom - r.top;
+}
+
+#pragma pack(push, 1)
+typedef struct {
+	uint8_t blue;
+	uint8_t green;
+	uint8_t red;
+	uint8_t alpha;
+} BGRA32;
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+typedef struct {
+	uint8_t red;
+	uint8_t green;
+	uint8_t blue;
+	uint8_t alpha;
+} RGBA32;
+#pragma pack(pop)
+
+uint32_t BGRAtoRGBA(uint32_t value) {
+	BGRA32 bgra = *((BGRA32 *) &value);
+	RGBA32 rgba = { .red = bgra.red, .green = bgra.green, .blue = bgra.blue, .alpha =  bgra.alpha };
+	uint32_t returnValue = *((uint32_t*) &rgba);
+	return returnValue;
+}
+
 int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
 		case VK_ESCAPE:
 			DestroyWindow(window);
 			return 0;
+
+		case VK_S: {
+			DestroyWindow(window);
+
+			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
+
+			// Specify format for the bitmap data to be returned
+			BITMAPINFOHEADER header = { 0 };
+			header.biSize = sizeof(header);
+			header.biWidth = SCREEN_WIDTH;
+			header.biHeight = -SCREEN_HEIGHT;
+			header.biPlanes = 1;
+			header.biBitCount = 32;
+			header.biCompression = BI_RGB;
+			BITMAPINFO info = { 0 };
+			info.bmiHeader = header;
+
+			// Capture instance of screen pixels
+			uint32_t *screenPixels = malloc(sizeof(uint32_t) * SCREEN_AREA);
+			int scanLinesCopied = GetDIBits(memory, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
+
+			const int SELECTION_WIDTH = GetWidth(selectionRectangle);
+			const int SELECTION_HEIGHT = GetHeight(selectionRectangle);
+			const int SELECTION_AREA = SELECTION_WIDTH * SELECTION_HEIGHT;
+			uint32_t *selectionPixels = malloc(sizeof(uint32_t) * SELECTION_AREA);
+
+			int i = 0;
+			for (int y = selectionRectangle.top; y < selectionRectangle.bottom;  y++) {
+				for (int x = selectionRectangle.left; x < selectionRectangle.right; x++) {
+					selectionPixels[i] = BGRAtoRGBA(screenPixels[(y * SCREEN_WIDTH) + x]);
+					i += 1;
+				}
+			}
+
+			int imageWritten = stbi_write_jpg("Screenshot.jpg", SELECTION_WIDTH, SELECTION_HEIGHT,
+											  4, selectionPixels, SELECTION_WIDTH * sizeof(uint32_t));
+			free(selectionPixels);
+			free(screenPixels);
+			return 0;
+		}
 
 		default:
 			return DefWindowProc(window, message, wParameter, lParameter);
@@ -156,14 +243,6 @@ AnchorBoxes GetAnchorBoxes(Anchors anchors) {
 	boxes.bottomMid = GetBox(anchors.bottomMid);
 	boxes.bottomRight = GetBox(anchors.bottomRight);
 	return boxes;
-}
-
-RECT GetTruncatedRectangle(RECT r) {
-	if (r.left < 0) r.left = 0;
-	if (r.top < 0) r.top = 0;
-	if (r.right > SCREEN_WIDTH) r.right = SCREEN_WIDTH;
-	if (r.bottom > SCREEN_HEIGHT) r.bottom = SCREEN_HEIGHT;
-	return r;
 }
 
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
@@ -319,7 +398,7 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	memory = CreateCompatibleDC(screen);
 
 	// Create screen compatible bitmap and associate it with the memory device context
-	HBITMAP memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
+	memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
 	HBITMAP previousMemoryBitmap = SelectObject(memory, memoryBitmap);
 
 	// Transfer color data from screen to memory
