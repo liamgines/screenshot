@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <assert.h>
 #include <windowsX.h>
+#include <stdio.h>
 #include <stdint.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -102,6 +103,12 @@ uint32_t BGRAtoRGBA(uint32_t value) {
 	return returnValue;
 }
 
+// https://stackoverflow.com/a/6218957
+BOOL FileExists(LPCSTR path) {
+	DWORD attributes = GetFileAttributesA(path);
+	return attributes != INVALID_FILE_ATTRIBUTES;
+}
+
 int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
 		case VK_ESCAPE:
@@ -141,7 +148,14 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 				}
 			}
 
-			int imageWritten = stbi_write_jpg("Screenshot.jpg", SELECTION_WIDTH, SELECTION_HEIGHT,
+			char fileName[MAX_PATH + 1 + 1] = "";
+			int n = 1;
+			do {
+				sprintf(fileName, "Screenshot_%d.png", n++);
+				if (strlen(fileName) > MAX_PATH) return 1;
+			} while (FileExists(fileName));
+
+			int imageWritten = stbi_write_png(fileName, SELECTION_WIDTH, SELECTION_HEIGHT,
 											  4, selectionPixels, SELECTION_WIDTH * sizeof(uint32_t));
 			free(selectionPixels);
 			free(screenPixels);
