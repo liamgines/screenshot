@@ -167,14 +167,14 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 	}
 }
 
-RECT GetBox(POINT p) {
-	RECT box = { .left = p.x - BOX_SIZE/2, .top = p.y - BOX_SIZE/2, .right = p.x + BOX_SIZE/2, .bottom = p.y + BOX_SIZE/2};
+RECT GetBox(POINT p, const LONG size) {
+	RECT box = { .left = p.x - size/2, .top = p.y - size/2, .right = p.x + size/2, .bottom = p.y + size/2};
 	return box;
 }
 
-void PaintAnchor(HDC destination, POINT p) {
-	HBRUSH boxColor = CreateSolidBrush(RGB(0, 255, 0));
-	RECT box = GetBox(p);
+void PaintAnchor(HDC destination, POINT p, COLORREF color, LONG size) {
+	HBRUSH boxColor = CreateSolidBrush(color);
+	RECT box = GetBox(p, size);
 	FillRect(destination, &box, boxColor);
 	DeleteObject(boxColor);
 }
@@ -248,14 +248,14 @@ typedef struct {
 
 AnchorBoxes GetAnchorBoxes(Anchors anchors) {
 	AnchorBoxes boxes;
-	boxes.topLeft = GetBox(anchors.topLeft);
-	boxes.topMid = GetBox(anchors.topMid);
-	boxes.topRight = GetBox(anchors.topRight);
-	boxes.midLeft = GetBox(anchors.midLeft);
-	boxes.midRight = GetBox(anchors.midRight);
-	boxes.bottomLeft = GetBox(anchors.bottomLeft);
-	boxes.bottomMid = GetBox(anchors.bottomMid);
-	boxes.bottomRight = GetBox(anchors.bottomRight);
+	boxes.topLeft = GetBox(anchors.topLeft, BOX_SIZE);
+	boxes.topMid = GetBox(anchors.topMid, BOX_SIZE);
+	boxes.topRight = GetBox(anchors.topRight, BOX_SIZE);
+	boxes.midLeft = GetBox(anchors.midLeft, BOX_SIZE);
+	boxes.midRight = GetBox(anchors.midRight, BOX_SIZE);
+	boxes.bottomLeft = GetBox(anchors.bottomLeft, BOX_SIZE);
+	boxes.bottomMid = GetBox(anchors.bottomMid, BOX_SIZE);
+	boxes.bottomRight = GetBox(anchors.bottomRight, BOX_SIZE);
 	return boxes;
 }
 
@@ -369,14 +369,25 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
 
 				// Paint anchor boxes
-				PaintAnchor(scene, anchors.topLeft);
-				PaintAnchor(scene, anchors.topMid);
-				PaintAnchor(scene, anchors.topRight);
-				PaintAnchor(scene, anchors.midLeft);
-				PaintAnchor(scene, anchors.midRight);
-				PaintAnchor(scene, anchors.bottomLeft);
-				PaintAnchor(scene, anchors.bottomMid);
-				PaintAnchor(scene, anchors.bottomRight);
+				COLORREF black = RGB(0, 0, 0);
+				COLORREF white = RGB(255, 255, 255);
+				PaintAnchor(scene, anchors.topLeft, white, BOX_SIZE);
+				PaintAnchor(scene, anchors.topMid, white, BOX_SIZE);
+				PaintAnchor(scene, anchors.topRight, white, BOX_SIZE);
+				PaintAnchor(scene, anchors.midLeft, white, BOX_SIZE);
+				PaintAnchor(scene, anchors.midRight, white, BOX_SIZE);
+				PaintAnchor(scene, anchors.bottomLeft, white, BOX_SIZE);
+				PaintAnchor(scene, anchors.bottomMid, white, BOX_SIZE);
+				PaintAnchor(scene, anchors.bottomRight, white, BOX_SIZE);
+
+				PaintAnchor(scene, anchors.topLeft, black, BOX_SIZE - 1);
+				PaintAnchor(scene, anchors.topMid, black, BOX_SIZE - 1);
+				PaintAnchor(scene, anchors.topRight, black, BOX_SIZE - 1);
+				PaintAnchor(scene, anchors.midLeft, black, BOX_SIZE - 1);
+				PaintAnchor(scene, anchors.midRight, black, BOX_SIZE - 1);
+				PaintAnchor(scene, anchors.bottomLeft, black, BOX_SIZE - 1);
+				PaintAnchor(scene, anchors.bottomMid, black, BOX_SIZE - 1);
+				PaintAnchor(scene, anchors.bottomRight, black, BOX_SIZE - 1);
 			}
 
 			BitBlt(client, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, scene, 0, 0, SRCCOPY);
