@@ -259,6 +259,15 @@ AnchorBoxes GetAnchorBoxes(Anchors anchors) {
 	return boxes;
 }
 
+HCURSOR GetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
+	if (PtInRect(&boxes.topLeft, point) || PtInRect(&boxes.bottomRight, point))		  return LoadCursor(NULL, IDC_SIZENWSE);
+	else if (PtInRect(&boxes.bottomLeft, point) || PtInRect(&boxes.topRight, point))  return LoadCursor(NULL, IDC_SIZENESW);
+	else if (PtInRect(&boxes.topMid, point) || PtInRect(&boxes.bottomMid, point))	  return LoadCursor(NULL, IDC_SIZENS);
+	else if (PtInRect(&boxes.midLeft, point) || PtInRect(&boxes.midRight, point))	  return LoadCursor(NULL, IDC_SIZEWE);
+	else if (PtInRect(&displayRectangle, point))									  return LoadCursor(NULL, IDC_SIZEALL);
+	return LoadCursor(NULL, IDC_ARROW);
+}
+
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	static BOOL drag = FALSE;
 	static POINT previousPosition;
@@ -266,16 +275,23 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	static LONG *selectedYCorner = NULL;
 	RECT displayRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 	Anchors anchors = GetAnchors(displayRectangle);
+	AnchorBoxes boxes = GetAnchorBoxes(anchors);
+	static POINT point;
+	GetCursorPos(&point);
 
 	switch (message) {
 		case WM_KEYUP:
 			return HandleKeyUp(window, message, wParameter, lParameter);
 
+		case WM_SETCURSOR:
+			// Update cursor based on position while left click is not held
+			SHORT leftClick = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
+			if (!leftClick) SetCursor(GetCursor(point, displayRectangle, boxes));
+			return TRUE;
+
 		case WM_LBUTTONDOWN: {
-			POINT point = GetPoint(lParameter);
 			BOOL cursorInSelection = PtInRect(&displayRectangle, point);
 
-			AnchorBoxes boxes = GetAnchorBoxes(anchors);
 			if (PtInRect(&boxes.topLeft, point)) {
 				selectedXCorner = &selectionRectangle.left;
 				selectedYCorner = &selectionRectangle.top;
@@ -318,6 +334,10 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 				selectedXCorner = &selectionRectangle.right;
 				selectedYCorner = &selectionRectangle.bottom;
+
+				// Ensure cursor is set on a new selection
+				SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
+
 				BOOL repaint = InvalidateRect(window, NULL, TRUE);
 			}
 			else if (cursorInSelection) {
@@ -327,7 +347,6 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		}
 
 		case WM_MOUSEMOVE: {
-			POINT point = GetPoint(lParameter);
 			if (wParameter == MK_LBUTTON && !drag) {
 				if (selectedXCorner) *selectedXCorner = point.x;
 				if (selectedYCorner) *selectedYCorner = point.y;
@@ -436,6 +455,7 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	windowClass.hInstance = appInstance;
 	windowClass.lpszClassName = L"Window Class";
 	windowClass.lpfnWndProc = WindowProcedure;
+	windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
 	RegisterClass(&windowClass);
 
 	HWND window = CreateWindow(windowClass.lpszClassName, L"", WS_POPUP,
