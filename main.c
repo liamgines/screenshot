@@ -116,9 +116,13 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 			return 0;
 
 		case VK_S: {
-			DestroyWindow(window);
-
 			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
+			const int SELECTION_WIDTH = GetWidth(selectionRectangle);
+			const int SELECTION_HEIGHT = GetHeight(selectionRectangle);
+			const int SELECTION_AREA = SELECTION_WIDTH * SELECTION_HEIGHT;
+
+			// Ensure empty screenshot can't be saved
+			if (!SELECTION_AREA) return 0;
 
 			// Specify format for the bitmap data to be returned
 			BITMAPINFOHEADER header = { 0 };
@@ -135,9 +139,6 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 			uint32_t *screenPixels = malloc(sizeof(uint32_t) * SCREEN_AREA);
 			int scanLinesCopied = GetDIBits(memory, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
 
-			const int SELECTION_WIDTH = GetWidth(selectionRectangle);
-			const int SELECTION_HEIGHT = GetHeight(selectionRectangle);
-			const int SELECTION_AREA = SELECTION_WIDTH * SELECTION_HEIGHT;
 			uint32_t *selectionPixels = malloc(sizeof(uint32_t) * SELECTION_AREA);
 
 			int i = 0;
@@ -159,6 +160,8 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 											  4, selectionPixels, SELECTION_WIDTH * sizeof(uint32_t));
 			free(selectionPixels);
 			free(screenPixels);
+
+			DestroyWindow(window);
 			return 0;
 		}
 
