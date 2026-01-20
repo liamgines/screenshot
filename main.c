@@ -263,7 +263,10 @@ AnchorBoxes GetAnchorBoxes(Anchors anchors) {
 }
 
 HCURSOR GetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
-	if (PtInRect(&boxes.topLeft, point) || PtInRect(&boxes.bottomRight, point))		  return LoadCursor(NULL, IDC_SIZENWSE);
+	// If selection is not visible, show default cursor
+	if (!HasArea(displayRectangle))													  return LoadCursor(NULL, IDC_ARROW);
+
+	else if (PtInRect(&boxes.topLeft, point) || PtInRect(&boxes.bottomRight, point))  return LoadCursor(NULL, IDC_SIZENWSE);
 	else if (PtInRect(&boxes.bottomLeft, point) || PtInRect(&boxes.topRight, point))  return LoadCursor(NULL, IDC_SIZENESW);
 	else if (PtInRect(&boxes.topMid, point) || PtInRect(&boxes.bottomMid, point))	  return LoadCursor(NULL, IDC_SIZENS);
 	else if (PtInRect(&boxes.midLeft, point) || PtInRect(&boxes.midRight, point))	  return LoadCursor(NULL, IDC_SIZEWE);
@@ -290,6 +293,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			// Update cursor based on position while left click is not held
 			SHORT leftClick = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
 			if (!leftClick) SetCursor(GetCursor(point, displayRectangle, boxes));
+			// If left click is held and selection is not visible, show a default resize icon
+			else if (leftClick && !HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
 			return TRUE;
 
 		case WM_LBUTTONDOWN: {
@@ -367,6 +372,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_LBUTTONUP:
 			// Normalize rectangle on release to ensure that the corner coordinates are consistent for subsequent rectangle transformations
 			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
+			// If selection is not visible when left click is released, show default cursor
+			if (!HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
 			drag = FALSE;
 
 
