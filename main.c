@@ -116,6 +116,9 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 			return 0;
 
 		case VK_S: {
+			// If 's' is pressed while CTRL is not, do not save
+			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
+
 			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 			const int SELECTION_WIDTH = GetWidth(selectionRectangle);
 			const int SELECTION_HEIGHT = GetHeight(selectionRectangle);
