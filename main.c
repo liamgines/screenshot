@@ -289,6 +289,10 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	GetCursorPos(&point);
 
 	switch (message) {
+		case WM_HOTKEY:
+			ShowWindow(window, SW_SHOWDEFAULT);
+			return 0;
+
 		case WM_KEYUP:
 			return HandleKeyUp(window, message, wParameter, lParameter);
 
@@ -475,7 +479,9 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
 
-	ShowWindow(window, visibility);
+	RegisterHotKey(window, 0, NULL, VK_SNAPSHOT);
+	ShowWindow(window, SW_HIDE);
+
 	MSG message;
 	BOOL messageReturned;
 	while ((messageReturned = GetMessage(&message, window, 0, 0)) != 0) {
