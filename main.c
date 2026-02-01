@@ -36,6 +36,7 @@ static RECT selectionRectangle = { 0 };
 static HDC screen;
 static HDC memory;
 static HBITMAP memoryBitmap;
+static HBITMAP previousMemoryBitmap;
 
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
@@ -294,11 +295,29 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	GetCursorPos(&point);
 
 	switch (message) {
+		case WM_DISPLAYCHANGE:
+			if (IsWindowVisible(window)) ShowWindow(window, SW_HIDE);
+
+			assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);
+			DeleteDC(memory);
+			DeleteObject(memoryBitmap);
+			memory = CreateCompatibleDC(screen);
+
+			SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
+			SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
+
+			// Create screen compatible bitmap and associate it with the memory device context
+			memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
+			HBITMAP previousMemoryBitmap = SelectObject(memory, memoryBitmap);
+
+			return 0;
+
+
 		case WM_HOTKEY:
 			if (!IsWindowVisible(window)) {
 				// Transfer color data from screen to memory
 				BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
-				ShowWindow(window, SW_SHOW);
+				SetWindowPos(window, HWND_TOP, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SWP_SHOWWINDOW);
 			}
 			return 0;
 
@@ -469,7 +488,7 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 
 	// Create screen compatible bitmap and associate it with the memory device context
 	memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
-	HBITMAP previousMemoryBitmap = SelectObject(memory, memoryBitmap);
+	previousMemoryBitmap = SelectObject(memory, memoryBitmap);
 
 	WNDCLASS windowClass = { 0 };
 	windowClass.hInstance = appInstance;
