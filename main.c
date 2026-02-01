@@ -33,6 +33,7 @@ static int SCREEN_WIDTH = 0;
 static int SCREEN_HEIGHT = 0;
 static RECT screenRectangle = { 0 };
 static RECT selectionRectangle = { 0 };
+static HDC screen;
 static HDC memory;
 static HBITMAP memoryBitmap;
 
@@ -112,7 +113,8 @@ BOOL FileExists(LPCSTR path) {
 int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
 		case VK_ESCAPE:
-			DestroyWindow(window);
+			ShowWindow(window, SW_HIDE);
+			selectionRectangle = (RECT){ 0 };
 			return 0;
 
 		case VK_S: {
@@ -164,7 +166,8 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 			free(selectionPixels);
 			free(screenPixels);
 
-			DestroyWindow(window);
+			ShowWindow(window, SW_HIDE);
+			selectionRectangle = (RECT){ 0 };
 			return 0;
 		}
 
@@ -290,7 +293,11 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 	switch (message) {
 		case WM_HOTKEY:
-			ShowWindow(window, SW_SHOWDEFAULT);
+			if (!IsWindowVisible(window)) {
+				// Transfer color data from screen to memory
+				BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
+				ShowWindow(window, SW_SHOW);
+			}
 			return 0;
 
 		case WM_KEYUP:
@@ -455,18 +462,12 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	screenRectangle.right = SCREEN_WIDTH;
 	screenRectangle.bottom = SCREEN_HEIGHT;
 
-	HDC screen = GetDC(SCREEN_HANDLE);
+	screen = GetDC(SCREEN_HANDLE);
 	memory = CreateCompatibleDC(screen);
 
 	// Create screen compatible bitmap and associate it with the memory device context
 	memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
 	HBITMAP previousMemoryBitmap = SelectObject(memory, memoryBitmap);
-
-	// Transfer color data from screen to memory
-	BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
-
-	// Clean up
-	ReleaseDC(SCREEN_HANDLE, screen);
 
 	WNDCLASS windowClass = { 0 };
 	windowClass.hInstance = appInstance;
@@ -494,6 +495,7 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	}
 
 	// Clean up
+	ReleaseDC(SCREEN_HANDLE, screen);
 	assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);
 	DeleteDC(memory);
 	DeleteObject(memoryBitmap);
