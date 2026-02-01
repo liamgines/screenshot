@@ -296,7 +296,10 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 	switch (message) {
 		case WM_DISPLAYCHANGE:
-			if (IsWindowVisible(window)) ShowWindow(window, SW_HIDE);
+			if (IsWindowVisible(window)) {
+				ShowWindow(window, SW_HIDE);
+				selectionRectangle = (RECT){ 0 };
+			}
 
 			assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);
 			DeleteDC(memory);
@@ -318,6 +321,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				// Transfer color data from screen to memory
 				BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
 				SetWindowPos(window, HWND_TOP, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SWP_SHOWWINDOW);
+				// BringWindowToTop(window);
 			}
 			return 0;
 
