@@ -129,6 +129,8 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 			// Ensure empty screenshot can't be saved
 			if (!SELECTION_AREA) return 0;
 
+			ShowWindow(window, SW_HIDE);
+
 			// Specify format for the bitmap data to be returned
 			BITMAPINFOHEADER header = { 0 };
 			header.biSize = sizeof(header);
@@ -154,6 +156,8 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 				}
 			}
 
+			selectionRectangle = (RECT){ 0 };
+
 			char fileName[MAX_PATH + 1 + 1] = "";
 			int n = 1;
 			do {
@@ -166,8 +170,6 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 			free(selectionPixels);
 			free(screenPixels);
 
-			ShowWindow(window, SW_HIDE);
-			selectionRectangle = (RECT){ 0 };
 			return 0;
 		}
 
