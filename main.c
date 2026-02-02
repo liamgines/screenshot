@@ -115,7 +115,6 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 	switch (wParameter) {
 		case VK_ESCAPE:
 			ShowWindow(window, SW_HIDE);
-			selectionRectangle = (RECT){ 0 };
 			return 0;
 
 		case VK_S: {
@@ -156,8 +155,6 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 					i += 1;
 				}
 			}
-
-			selectionRectangle = (RECT){ 0 };
 
 			char fileName[MAX_PATH + 1 + 1] = "";
 			int n = 1;
@@ -295,11 +292,13 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	GetCursorPos(&point);
 
 	switch (message) {
+		case WM_ACTIVATE:
+			BOOL activationStatus = HIWORD(wParameter);
+			if (activationStatus == WA_INACTIVE) ShowWindow(window, SW_HIDE);
+			return DefWindowProc(window, message, wParameter, lParameter);
+
 		case WM_DISPLAYCHANGE:
-			if (IsWindowVisible(window)) {
-				ShowWindow(window, SW_HIDE);
-				selectionRectangle = (RECT){ 0 };
-			}
+			if (IsWindowVisible(window)) ShowWindow(window, SW_HIDE);
 
 			assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);
 			DeleteDC(memory);
@@ -318,6 +317,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_HOTKEY:
 			if (!IsWindowVisible(window)) {
+				selectionRectangle = (RECT){ 0 };
 				// Transfer color data from screen to memory
 				BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
 				if (GetForegroundWindow() != window) SetForegroundWindow(window);
