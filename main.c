@@ -498,6 +498,11 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 }
 
 int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR commandLine, int visibility) {
+	// https://stackoverflow.com/a/33531179/32242805
+	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
+	HANDLE singleInstanceMutex = CreateMutex(NULL, TRUE, L"Single Instance Mutex for Screenshot Application");
+	if (GetLastError()) return 1;
+
 	if (wcslen(commandLine)) {
 		fileDirectory = commandLine;
 		assert(DirectoryExists(fileDirectory));
@@ -549,6 +554,9 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);
 	DeleteDC(memory);
 	DeleteObject(memoryBitmap);
+
+	ReleaseMutex(singleInstanceMutex);
+	CloseHandle(singleInstanceMutex);
 
 	return 0;
 }
