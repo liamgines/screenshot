@@ -320,6 +320,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			if (!IsWindowVisible(window)) {
 				// Transfer color data from screen to memory
 				BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
+				if (GetForegroundWindow() != window) SetForegroundWindow(window);
 				SetWindowPos(window, HWND_TOP, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SWP_SHOWWINDOW);
 				// BringWindowToTop(window);
 			}
