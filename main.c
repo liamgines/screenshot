@@ -4,6 +4,7 @@
 #include <windowsX.h>
 #include <stdio.h>
 #include <stdint.h>
+#define STBIW_WINDOWS_UTF8
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #define VK_S 0x53
@@ -106,8 +107,8 @@ uint32_t BGRAtoRGBA(uint32_t value) {
 }
 
 // https://stackoverflow.com/a/6218957
-BOOL FileExists(LPCSTR path) {
-	DWORD attributes = GetFileAttributesA(path);
+BOOL FileExists(LPCWSTR path) {
+	DWORD attributes = GetFileAttributes(path);
 	return attributes != INVALID_FILE_ATTRIBUTES;
 }
 
@@ -156,15 +157,22 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 				}
 			}
 
-			char fileName[MAX_PATH + 1 + 1] = "";
+			wchar_t fileName[MAX_PATH + 1 + 1] = L"";
 			int n = 1;
 			do {
-				sprintf(fileName, "Screenshot_%d.png", n++);
-				if (strlen(fileName) > MAX_PATH) return 1;
+				swprintf(fileName, MAX_PATH + 1 + 1, L"Screenshot_%d.png", n++);
+				if (wcslen(fileName) > MAX_PATH) {
+					free(selectionPixels);
+					free(screenPixels);
+					return 1;
+				}
 			} while (FileExists(fileName));
 
-			int imageWritten = stbi_write_png(fileName, SELECTION_WIDTH, SELECTION_HEIGHT,
+			char outputLocation[MAX_PATH + 1] = "";
+			stbiw_convert_wchar_to_utf8(outputLocation, MAX_PATH + 1, fileName);
+			int imageWritten = stbi_write_png(outputLocation, SELECTION_WIDTH, SELECTION_HEIGHT,
 											  4, selectionPixels, SELECTION_WIDTH * sizeof(uint32_t));
+
 			free(selectionPixels);
 			free(screenPixels);
 
