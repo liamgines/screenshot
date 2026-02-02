@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <assert.h>
 #include <windowsX.h>
+#include <shlwapi.h>	// https://stackoverflow.com/a/49674208/32242805
 #include <stdio.h>
 #include <stdint.h>
 #define STBIW_WINDOWS_UTF8
@@ -38,6 +39,7 @@ static HDC screen;
 static HDC memory;
 static HBITMAP memoryBitmap;
 static HBITMAP previousMemoryBitmap;
+static wchar_t *fileDirectory = NULL;
 
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
@@ -112,6 +114,12 @@ BOOL FileExists(LPCWSTR path) {
 	return attributes != INVALID_FILE_ATTRIBUTES;
 }
 
+// https://stackoverflow.com/a/6218445/32242805
+BOOL DirectoryExists(LPCWSTR path) {
+	DWORD attributes = GetFileAttributes(path);
+	return (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
+}
+
 int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
 		case VK_ESCAPE:
@@ -157,19 +165,22 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 				}
 			}
 
+			wchar_t filePath[MAX_PATH + 1 + 1] = L"";
 			wchar_t fileName[MAX_PATH + 1 + 1] = L"";
 			int n = 1;
 			do {
 				swprintf(fileName, MAX_PATH + 1 + 1, L"Screenshot_%d.png", n++);
-				if (wcslen(fileName) > MAX_PATH) {
+
+				PathCombine(filePath, fileDirectory, fileName);
+				if (wcslen(filePath) > MAX_PATH) {
 					free(selectionPixels);
 					free(screenPixels);
 					return 1;
 				}
-			} while (FileExists(fileName));
+			} while (FileExists(filePath));
 
 			char outputLocation[MAX_PATH + 1] = "";
-			stbiw_convert_wchar_to_utf8(outputLocation, MAX_PATH + 1, fileName);
+			stbiw_convert_wchar_to_utf8(outputLocation, MAX_PATH + 1, filePath);
 			int imageWritten = stbi_write_png(outputLocation, SELECTION_WIDTH, SELECTION_HEIGHT,
 											  4, selectionPixels, SELECTION_WIDTH * sizeof(uint32_t));
 
@@ -487,6 +498,11 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 }
 
 int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR commandLine, int visibility) {
+	if (wcslen(commandLine)) {
+		fileDirectory = commandLine;
+		assert(DirectoryExists(fileDirectory));
+	}
+
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
 
