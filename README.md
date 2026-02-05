@@ -12,6 +12,14 @@ Controls
 
 Installation
 --------
-First, run `vcvarsall.bat x64`.
+First, run:
 
-Then compile with `cl /ZI /D _UNICODE /D UNICODE main.c User32.lib Gdi32.lib Shlwapi.lib /Fe:screenshot.exe`.
+	vcvarsall.bat x64
+
+Then compile with:
+
+	cl /ZI /D _UNICODE /D UNICODE main.c User32.lib Gdi32.lib Shlwapi.lib /Fe:screenshot.exe
+
+If you want to add the app to startup, run `install.bat`.
+
+Otherwise, manually run the app as admin.
