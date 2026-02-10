@@ -290,11 +290,10 @@ AnchorBoxes GetAnchorBoxes(Anchors anchors) {
 HCURSOR GetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
 	// If selection is not visible, show default cursor
 	if (!HasArea(displayRectangle))													  return LoadCursor(NULL, IDC_ARROW);
-
 	else if (PtInRect(&boxes.topLeft, point) || PtInRect(&boxes.bottomRight, point))  return LoadCursor(NULL, IDC_SIZENWSE);
 	else if (PtInRect(&boxes.bottomLeft, point) || PtInRect(&boxes.topRight, point))  return LoadCursor(NULL, IDC_SIZENESW);
-	else if (PtInRect(&boxes.topMid, point) || PtInRect(&boxes.bottomMid, point))	  return LoadCursor(NULL, IDC_SIZENS);
 	else if (PtInRect(&boxes.midLeft, point) || PtInRect(&boxes.midRight, point))	  return LoadCursor(NULL, IDC_SIZEWE);
+	else if (PtInRect(&boxes.topMid, point) || PtInRect(&boxes.bottomMid, point))	  return LoadCursor(NULL, IDC_SIZENS);
 	else if (PtInRect(&displayRectangle, point))									  return LoadCursor(NULL, IDC_SIZEALL);
 	return LoadCursor(NULL, IDC_ARROW);
 }
@@ -363,9 +362,13 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				selectedXCorner = &selectionRectangle.left;
 				selectedYCorner = &selectionRectangle.top;
 			}
-			else if (PtInRect(&boxes.topMid, point)) {
-				selectedXCorner = NULL;
-				selectedYCorner = &selectionRectangle.top;
+			else if (PtInRect(&boxes.bottomRight, point)) {
+				selectedXCorner = &selectionRectangle.right;
+				selectedYCorner = &selectionRectangle.bottom;
+			}
+			else if (PtInRect(&boxes.bottomLeft, point)) {
+				selectedXCorner = &selectionRectangle.left;
+				selectedYCorner = &selectionRectangle.bottom;
 			}
 			else if (PtInRect(&boxes.topRight, point)) {
 				selectedXCorner = &selectionRectangle.right;
@@ -379,16 +382,12 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				selectedXCorner = &selectionRectangle.right;
 				selectedYCorner = NULL;
 			}
-			else if (PtInRect(&boxes.bottomLeft, point)) {
-				selectedXCorner = &selectionRectangle.left;
-				selectedYCorner = &selectionRectangle.bottom;
+			else if (PtInRect(&boxes.topMid, point)) {
+				selectedXCorner = NULL;
+				selectedYCorner = &selectionRectangle.top;
 			}
 			else if (PtInRect(&boxes.bottomMid, point)) {
 				selectedXCorner = NULL;
-				selectedYCorner = &selectionRectangle.bottom;
-			}
-			else if (PtInRect(&boxes.bottomRight, point)) {
-				selectedXCorner = &selectionRectangle.right;
 				selectedYCorner = &selectionRectangle.bottom;
 			}
 
