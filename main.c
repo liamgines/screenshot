@@ -180,12 +180,8 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	return 0;
 }
 
-int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
+int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
-		case VK_ESCAPE:
-			ShowWindow(window, SW_HIDE);
-			return 0;
-
 		case VK_S: {
 			// If 's' is pressed while CTRL is not, do not save
 			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
@@ -230,6 +226,16 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 			CloseHandle(thread);
 			return 0;
 		}
+		default:
+			return DefWindowProc(window, message, wParameter, lParameter);
+	}
+}
+
+int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
+	switch (wParameter) {
+		case VK_ESCAPE:
+			ShowWindow(window, SW_HIDE);
+			return 0;
 
 		default:
 			return DefWindowProc(window, message, wParameter, lParameter);
@@ -384,6 +390,9 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				// BringWindowToTop(window);
 			}
 			return 0;
+
+		case WM_KEYDOWN:
+			return HandleKeyDown(window, message, wParameter, lParameter);
 
 		case WM_KEYUP:
 			return HandleKeyUp(window, message, wParameter, lParameter);
