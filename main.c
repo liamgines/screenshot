@@ -18,6 +18,9 @@ do {					 \
 	y = temp;			 \
 } while (0)
 
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+
 #define MIDPOINT(x, y) (((x) + (y)) / 2)
 
 #ifndef UNICODE
@@ -54,6 +57,10 @@ RECT GetTruncatedRectangle(RECT r) {
 	if (r.right > SCREEN_WIDTH) r.right = SCREEN_WIDTH;
 	if (r.bottom > SCREEN_HEIGHT) r.bottom = SCREEN_HEIGHT;
 	return r;
+}
+
+RECT NormalizeAndTruncate(RECT r) {
+	return GetTruncatedRectangle(GetNormalizedRectangle(r));
 }
 
 POINT GetPoint(LPARAM lParameter) {
@@ -338,6 +345,17 @@ HCURSOR GetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
 	return LoadCursor(NULL, IDC_ARROW);
 }
 
+RECT GetUpdateRectangle(RECT before, RECT after, int padding) {
+	before = NormalizeAndTruncate(before);
+	after = NormalizeAndTruncate(after);
+	return (RECT) {
+		.left = MIN(before.left, after.left) - padding,
+		.top = MIN(before.top, after.top) - padding,
+		.right = MAX(before.right, after.right) + padding,
+		.bottom = MAX(before.bottom, after.bottom) + padding
+	};
+}
+
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	static BOOL drag = FALSE;
 	static POINT previousPosition;
@@ -443,8 +461,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 				// Ensure cursor is set on a new selection
 				SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
-
-				BOOL repaint = InvalidateRect(window, NULL, TRUE);
+				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
 			else if (cursorInSelection) {
 				drag = TRUE;
@@ -456,12 +474,14 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			if (wParameter == MK_LBUTTON && !drag) {
 				if (selectedXCorner) *selectedXCorner = point.x;
 				if (selectedYCorner) *selectedYCorner = point.y;
-				BOOL repaint = InvalidateRect(window, NULL, TRUE);
+				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
 			else if (wParameter == MK_LBUTTON && drag) {
 				POINT difference = GetDifference(point, previousPosition);
 				selectionRectangle = TranslateRectangle(selectionRectangle, difference);
-				BOOL repaint = InvalidateRect(window, NULL, TRUE);
+				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
 			previousPosition = point;
 			return 0;
@@ -479,25 +499,33 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			PAINTSTRUCT paint;
 			HDC client = BeginPaint(window, &paint);
 
+			RECT update = paint.rcPaint;
+			RECT sceneCoords = { .left = 0, .top = 0, .right = GetWidth(update), .bottom = GetHeight(update) };
+
 			HDC scene = CreateCompatibleDC(client);
-			HBITMAP sceneBitmap = CreateCompatibleBitmap(client, SCREEN_WIDTH, SCREEN_HEIGHT);
+			HBITMAP sceneBitmap = CreateCompatibleBitmap(client, GetWidth(update), GetHeight(update));
 			HBITMAP previousSceneBitmap = SelectObject(scene, sceneBitmap);
 			HBRUSH backgroundColor = CreateSolidBrush(RGB(0, 0, 0));
 
-			assert(FillRect(scene, &screenRectangle, backgroundColor));
+			assert(FillRect(scene, &sceneCoords, backgroundColor));
 			BLENDFUNCTION blend = { 0 };
 			blend.BlendOp = AC_SRC_OVER;
 			blend.SourceConstantAlpha = 128;
 			blend.AlphaFormat = AC_SRC_ALPHA;
-			BOOL blended = GdiAlphaBlend(scene, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, blend);
+			BOOL blended = GdiAlphaBlend(scene, 0, 0, GetWidth(update), GetHeight(update),
+										 memory, update.left, update.top, GetWidth(update), GetHeight(update), blend);
 
 			if (HasArea(displayRectangle)) {
-				BitBlt(scene, displayRectangle.left, displayRectangle.top, displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
+				// Display rectangle must be relative to the update region, not the client
+				BitBlt(scene, (displayRectangle.left - update.left), (displayRectangle.top - update.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
 					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
 
 				// Paint anchor boxes
 				COLORREF black = RGB(0, 0, 0);
 				COLORREF white = RGB(255, 255, 255);
+
+				// TODO: Paint selection boxes with updated paint logic
+				/*
 				PaintAnchor(scene, anchors.topLeft, white, BOX_SIZE);
 				PaintAnchor(scene, anchors.topMid, white, BOX_SIZE);
 				PaintAnchor(scene, anchors.topRight, white, BOX_SIZE);
@@ -515,9 +543,10 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				PaintAnchor(scene, anchors.bottomLeft, black, BOX_SIZE - 1);
 				PaintAnchor(scene, anchors.bottomMid, black, BOX_SIZE - 1);
 				PaintAnchor(scene, anchors.bottomRight, black, BOX_SIZE - 1);
+				*/
 			}
 
-			BitBlt(client, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, scene, 0, 0, SRCCOPY);
+			BitBlt(client, update.left, update.top, GetWidth(update), GetHeight(update), scene, 0, 0, SRCCOPY);
 
 			// Clean up
 			DeleteObject(backgroundColor);
