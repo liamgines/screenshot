@@ -40,6 +40,7 @@ static HDC memory;
 static HBITMAP memoryBitmap;
 static HBITMAP previousMemoryBitmap;
 static wchar_t *fileDirectory = NULL;
+static CRITICAL_SECTION criticalSection;
 
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
@@ -120,6 +121,65 @@ BOOL DirectoryExists(LPCWSTR path) {
 	return (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 
+typedef struct {
+	int selectionArea;
+	RECT selectionRectangle;
+	uint32_t *screenPixels;
+	int screenWidth;
+	wchar_t *fileDirectory;
+	int selectionWidth;
+	int selectionHeight;
+} SaveScreenshotParameter;
+
+DWORD WINAPI SaveScreenshot(LPVOID parameter) {
+	SaveScreenshotParameter args = *((SaveScreenshotParameter *) parameter);
+
+	uint32_t* selectionPixels = malloc(sizeof(uint32_t) * args.selectionArea);
+
+	int i = 0;
+	for (int y = args.selectionRectangle.top; y < args.selectionRectangle.bottom; y++) {
+		for (int x = args.selectionRectangle.left; x < args.selectionRectangle.right; x++) {
+			selectionPixels[i] = BGRAtoRGBA(args.screenPixels[(y * args.screenWidth) + x]);
+			i += 1;
+		}
+	}
+
+	EnterCriticalSection(&criticalSection);
+
+	wchar_t filePath[MAX_PATH + 1 + 1] = L"";
+	wchar_t fileName[MAX_PATH + 1 + 1] = L"";
+	int n = 1;
+	do {
+		swprintf(fileName, MAX_PATH + 1 + 1, L"Screenshot_%d.png", n++);
+
+		PathCombine(filePath, args.fileDirectory, fileName);
+		if (wcslen(filePath) > MAX_PATH) {
+			// TODO: Double check
+			free(selectionPixels);
+			free(args.screenPixels);
+			free(args.fileDirectory);
+			free(parameter);
+
+			return 1;
+		}
+	} while (FileExists(filePath));
+
+	char outputLocation[MAX_PATH + 1] = "";
+	stbiw_convert_wchar_to_utf8(outputLocation, MAX_PATH + 1, filePath);
+	int imageWritten = stbi_write_png(outputLocation, args.selectionWidth, args.selectionHeight,
+		4, selectionPixels, args.selectionWidth * sizeof(uint32_t));
+
+	// TODO: Double check
+	free(selectionPixels);
+	free(args.screenPixels);
+	free(args.fileDirectory);
+	free(parameter);
+
+	LeaveCriticalSection(&criticalSection);
+
+	return 0;
+}
+
 int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
 		case VK_ESCAPE:
@@ -155,38 +215,19 @@ int HandleKeyUp(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 			uint32_t *screenPixels = malloc(sizeof(uint32_t) * SCREEN_AREA);
 			int scanLinesCopied = GetDIBits(memory, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
 
-			uint32_t *selectionPixels = malloc(sizeof(uint32_t) * SELECTION_AREA);
+			SaveScreenshotParameter *parameter = malloc(sizeof(SaveScreenshotParameter));
+			parameter->selectionArea = SELECTION_AREA;
+			parameter->selectionRectangle = selectionRectangle;
+			parameter->screenPixels = screenPixels;
+			parameter->screenWidth = SCREEN_WIDTH;
+			wchar_t *fileDirectoryCopy = malloc(sizeof(wchar_t) * (wcslen(fileDirectory) + 1));
+			wcscpy(fileDirectoryCopy, fileDirectory);
+			parameter->fileDirectory = fileDirectoryCopy;
+			parameter->selectionWidth = SELECTION_WIDTH;
+			parameter->selectionHeight = SELECTION_HEIGHT;
 
-			int i = 0;
-			for (int y = selectionRectangle.top; y < selectionRectangle.bottom;  y++) {
-				for (int x = selectionRectangle.left; x < selectionRectangle.right; x++) {
-					selectionPixels[i] = BGRAtoRGBA(screenPixels[(y * SCREEN_WIDTH) + x]);
-					i += 1;
-				}
-			}
-
-			wchar_t filePath[MAX_PATH + 1 + 1] = L"";
-			wchar_t fileName[MAX_PATH + 1 + 1] = L"";
-			int n = 1;
-			do {
-				swprintf(fileName, MAX_PATH + 1 + 1, L"Screenshot_%d.png", n++);
-
-				PathCombine(filePath, fileDirectory, fileName);
-				if (wcslen(filePath) > MAX_PATH) {
-					free(selectionPixels);
-					free(screenPixels);
-					return 1;
-				}
-			} while (FileExists(filePath));
-
-			char outputLocation[MAX_PATH + 1] = "";
-			stbiw_convert_wchar_to_utf8(outputLocation, MAX_PATH + 1, filePath);
-			int imageWritten = stbi_write_png(outputLocation, SELECTION_WIDTH, SELECTION_HEIGHT,
-											  4, selectionPixels, SELECTION_WIDTH * sizeof(uint32_t));
-
-			free(selectionPixels);
-			free(screenPixels);
-
+			HANDLE thread = CreateThread(NULL, 0, SaveScreenshot, parameter, 0, NULL);
+			CloseHandle(thread);
 			return 0;
 		}
 
@@ -537,6 +578,8 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	RegisterHotKey(window, 0, NULL, VK_SNAPSHOT);
 	ShowWindow(window, SW_HIDE);
 
+	InitializeCriticalSection(&criticalSection);
+
 	MSG message;
 	BOOL messageReturned;
 	while ((messageReturned = GetMessage(&message, window, 0, 0)) != 0) {
@@ -554,6 +597,7 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	DeleteDC(memory);
 	DeleteObject(memoryBitmap);
 
+	DeleteCriticalSection(&criticalSection);
 	ReleaseMutex(singleInstanceMutex);
 	CloseHandle(singleInstanceMutex);
 
