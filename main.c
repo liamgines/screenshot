@@ -32,7 +32,7 @@ do {					 \
 
 #define SCREEN_HANDLE NULL
 #define SCREEN_AREA (SCREEN_WIDTH * SCREEN_HEIGHT)
-#define BOX_SIZE 6
+#define BOX_SIZE 6 * 4
 
 static int SCREEN_WIDTH = 0;
 static int SCREEN_HEIGHT = 0;
@@ -334,6 +334,21 @@ AnchorBoxes GetAnchorBoxes(Anchors anchors) {
 	return boxes;
 }
 
+AnchorBoxes FitBoxes(AnchorBoxes boxes, RECT fit) {
+	boxes.topMid.left = fit.left;
+	boxes.topMid.right = fit.right;
+
+	boxes.bottomMid.left = fit.left;
+	boxes.bottomMid.right = fit.right;
+
+	boxes.midLeft.top = fit.top;
+	boxes.midLeft.bottom = fit.bottom;
+
+	boxes.midRight.top = fit.top;
+	boxes.midRight.bottom = fit.bottom;
+	return boxes;
+}
+
 HCURSOR GetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
 	// If selection is not visible, show default cursor
 	if (!HasArea(displayRectangle))													  return LoadCursor(NULL, IDC_ARROW);
@@ -364,6 +379,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	RECT displayRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 	Anchors anchors = GetAnchors(displayRectangle);
 	AnchorBoxes boxes = GetAnchorBoxes(anchors);
+	boxes = FitBoxes(boxes, displayRectangle);
 	static POINT point;
 	GetCursorPos(&point);
 
@@ -519,31 +535,6 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				// Display rectangle must be relative to the update region, not the client
 				BitBlt(scene, (displayRectangle.left - update.left), (displayRectangle.top - update.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
 					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
-
-				// Paint anchor boxes
-				COLORREF black = RGB(0, 0, 0);
-				COLORREF white = RGB(255, 255, 255);
-
-				// TODO: Paint selection boxes with updated paint logic
-				/*
-				PaintAnchor(scene, anchors.topLeft, white, BOX_SIZE);
-				PaintAnchor(scene, anchors.topMid, white, BOX_SIZE);
-				PaintAnchor(scene, anchors.topRight, white, BOX_SIZE);
-				PaintAnchor(scene, anchors.midLeft, white, BOX_SIZE);
-				PaintAnchor(scene, anchors.midRight, white, BOX_SIZE);
-				PaintAnchor(scene, anchors.bottomLeft, white, BOX_SIZE);
-				PaintAnchor(scene, anchors.bottomMid, white, BOX_SIZE);
-				PaintAnchor(scene, anchors.bottomRight, white, BOX_SIZE);
-
-				PaintAnchor(scene, anchors.topLeft, black, BOX_SIZE - 1);
-				PaintAnchor(scene, anchors.topMid, black, BOX_SIZE - 1);
-				PaintAnchor(scene, anchors.topRight, black, BOX_SIZE - 1);
-				PaintAnchor(scene, anchors.midLeft, black, BOX_SIZE - 1);
-				PaintAnchor(scene, anchors.midRight, black, BOX_SIZE - 1);
-				PaintAnchor(scene, anchors.bottomLeft, black, BOX_SIZE - 1);
-				PaintAnchor(scene, anchors.bottomMid, black, BOX_SIZE - 1);
-				PaintAnchor(scene, anchors.bottomRight, black, BOX_SIZE - 1);
-				*/
 			}
 
 			BitBlt(client, update.left, update.top, GetWidth(update), GetHeight(update), scene, 0, 0, SRCCOPY);
