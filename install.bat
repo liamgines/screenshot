@@ -11,9 +11,7 @@ IF EXIST screenshot.exe (
 	del "C:\Program Files\Screenshot\screenshot.exe"
 	IF EXIST "C:\Program Files\Screenshot\screenshot.exe" (
 		echo:
-		echo screenshot.exe could not be added to startup.
-		echo This is because the existing screenshot.exe at C:\Program Files\Screenshot could not be replaced.
-		echo Please ensure that the existing screenshot.exe at C:\Program Files\Screenshot is not running and try again.
+		echo ERROR: screenshot.exe could not be added to startup. Please ensure that the existing screenshot.exe at C:\Program Files\Screenshot is not running and try again.
 		echo:
 		PAUSE
 	) ELSE (
@@ -27,7 +25,7 @@ IF EXIST screenshot.exe (
 	)
 ) ELSE (
 	echo:
-	echo Place screenshot.exe in the same directory as install.bat and try again.
+	echo ERROR: Place screenshot.exe in the same directory as install.bat and try again.
 	echo:
 	PAUSE
 )

@@ -11,8 +11,7 @@ schtasks /delete /tn "Screenshot" /f
 rmdir /S /Q "C:\Program Files\Screenshot"
 IF EXIST "C:\Program Files\Screenshot" (
 	echo:
-	echo Program was removed from startup. However, C:\Program Files\Screenshot could not be removed.
-	echo Please ensure no programs, like screenshot.exe, are running from this directory and try again.
+	echo ERROR: C:\Program Files\Screenshot could not be removed. Please ensure no programs, like screenshot.exe, are running from that directory and try again.
 	echo:
 	PAUSE
 ) ELSE (
