@@ -535,6 +535,18 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				// Display rectangle must be relative to the update region, not the client
 				BitBlt(scene, (displayRectangle.left - update.left), (displayRectangle.top - update.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
 					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
+
+				COLORREF black = RGB(0, 0, 0);
+				HPEN pen = CreatePen(PS_DOT, 1, black);
+				SelectObject(scene, pen);
+
+				MoveToEx(scene, displayRectangle.left - update.left, displayRectangle.top - update.top, NULL);
+				LineTo(scene, displayRectangle.right - update.left, displayRectangle.top - update.top);
+				LineTo(scene, displayRectangle.right - update.left, displayRectangle.bottom - update.top);
+				LineTo(scene, displayRectangle.left - update.left, displayRectangle.bottom - update.top);
+				LineTo(scene, displayRectangle.left - update.left, displayRectangle.top - update.top);
+
+				DeleteObject(pen);
 			}
 
 			BitBlt(client, update.left, update.top, GetWidth(update), GetHeight(update), scene, 0, 0, SRCCOPY);
