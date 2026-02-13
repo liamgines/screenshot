@@ -477,12 +477,12 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 				// Ensure cursor is set on a new selection
 				SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
-				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
-				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
 			else if (cursorInSelection) {
 				drag = TRUE;
 			}
+			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+			BOOL repaint = InvalidateRect(window, &update, TRUE);
 			return 0;
 		}
 
@@ -503,12 +503,16 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			return 0;
 		}
 
-		case WM_LBUTTONUP:
+		case WM_LBUTTONUP: {
 			// Normalize rectangle on release to ensure that the corner coordinates are consistent for subsequent rectangle transformations
 			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 			// If selection is not visible when left click is released, show default cursor
 			if (!HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
 			drag = FALSE;
+
+			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+			BOOL repaint = InvalidateRect(window, &update, TRUE);
+		}
 
 
 		case WM_PAINT:
@@ -536,17 +540,20 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				BitBlt(scene, (displayRectangle.left - update.left), (displayRectangle.top - update.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
 					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
 
-				COLORREF black = RGB(0, 0, 0);
-				HPEN pen = CreatePen(PS_DOT, 1, black);
-				SelectObject(scene, pen);
+				SHORT leftClick = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
+				if (!leftClick) {
+					COLORREF black = RGB(0, 0, 0);
+					HPEN pen = CreatePen(PS_DOT, 1, black);
+					SelectObject(scene, pen);
 
-				MoveToEx(scene, displayRectangle.left - update.left, displayRectangle.top - update.top, NULL);
-				LineTo(scene, displayRectangle.right - update.left, displayRectangle.top - update.top);
-				LineTo(scene, displayRectangle.right - update.left, displayRectangle.bottom - update.top);
-				LineTo(scene, displayRectangle.left - update.left, displayRectangle.bottom - update.top);
-				LineTo(scene, displayRectangle.left - update.left, displayRectangle.top - update.top);
+					MoveToEx(scene, displayRectangle.left - update.left, displayRectangle.top - update.top, NULL);
+					LineTo(scene, displayRectangle.right - update.left, displayRectangle.top - update.top);
+					LineTo(scene, displayRectangle.right - update.left, displayRectangle.bottom - update.top);
+					LineTo(scene, displayRectangle.left - update.left, displayRectangle.bottom - update.top);
+					LineTo(scene, displayRectangle.left - update.left, displayRectangle.top - update.top);
 
-				DeleteObject(pen);
+					DeleteObject(pen);
+				}
 			}
 
 			BitBlt(client, update.left, update.top, GetWidth(update), GetHeight(update), scene, 0, 0, SRCCOPY);
