@@ -9,6 +9,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #define VK_S 0x53
+#define VK_F 0x46
 
 #define SWAP(TYPE, x, y) \
 do {					 \
@@ -44,6 +45,7 @@ static HBITMAP memoryBitmap;
 static HBITMAP previousMemoryBitmap;
 static wchar_t *fileDirectory = NULL;
 static CRITICAL_SECTION criticalSection;
+static BOOL outlineSelection = FALSE;
 
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
@@ -191,6 +193,10 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 	switch (wParameter) {
 		case VK_ESCAPE:
 			ShowWindow(window, SW_HIDE);
+			return 0;
+
+		case VK_F:
+			outlineSelection = !outlineSelection;
 			return 0;
 
 		case VK_S: {
@@ -419,7 +425,12 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			return 0;
 
 		case WM_KEYDOWN:
-			return HandleKeyDown(window, message, wParameter, lParameter);
+			if (HandleKeyDown(window, message, wParameter, lParameter) == 0) {
+				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+				BOOL repaint = InvalidateRect(window, &update, TRUE);
+				return 0;
+			}
+			return 1;
 
 		case WM_SETCURSOR:
 			// Update cursor based on position while left click is not held
@@ -477,12 +488,12 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 				// Ensure cursor is set on a new selection
 				SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
-				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
-				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
 			else if (cursorInSelection) {
 				drag = TRUE;
 			}
+			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+			BOOL repaint = InvalidateRect(window, &update, TRUE);
 			return 0;
 		}
 
@@ -503,12 +514,16 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			return 0;
 		}
 
-		case WM_LBUTTONUP:
+		case WM_LBUTTONUP: {
 			// Normalize rectangle on release to ensure that the corner coordinates are consistent for subsequent rectangle transformations
 			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 			// If selection is not visible when left click is released, show default cursor
 			if (!HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
 			drag = FALSE;
+
+			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+			BOOL repaint = InvalidateRect(window, &update, TRUE);
+		}
 
 
 		case WM_PAINT:
@@ -535,6 +550,20 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				// Display rectangle must be relative to the update region, not the client
 				BitBlt(scene, (displayRectangle.left - update.left), (displayRectangle.top - update.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
 					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
+
+				if (outlineSelection) {
+					COLORREF black = RGB(0, 0, 0);
+					HPEN pen = CreatePen(PS_DOT, 1, black);
+					SelectObject(scene, pen);
+
+					MoveToEx(scene, displayRectangle.left - update.left, displayRectangle.top - update.top, NULL);
+					LineTo(scene, displayRectangle.right - update.left, displayRectangle.top - update.top);
+					LineTo(scene, displayRectangle.right - update.left, displayRectangle.bottom - update.top);
+					LineTo(scene, displayRectangle.left - update.left, displayRectangle.bottom - update.top);
+					LineTo(scene, displayRectangle.left - update.left, displayRectangle.top - update.top);
+
+					DeleteObject(pen);
+				}
 			}
 
 			BitBlt(client, update.left, update.top, GetWidth(update), GetHeight(update), scene, 0, 0, SRCCOPY);

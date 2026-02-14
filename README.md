@@ -8,6 +8,7 @@ Controls
 `PrtSc` displays the selection screen.<br>
 `Left Click` creates, resizes or moves a selection.<br>
 `Ctrl+S` saves a selection.<br>
+`F` activates a selection outline.<br>
 `Esc` closes the selection screen.
 
 Installation
