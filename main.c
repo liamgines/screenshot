@@ -390,6 +390,12 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	GetCursorPos(&point);
 
 	switch (message) {
+		case WM_SHOWWINDOW:
+			BOOL windowShown = wParameter;
+			if (!windowShown) outlineSelection = FALSE;
+			return DefWindowProc(window, message, wParameter, lParameter);
+
+
 		case WM_ACTIVATE:
 			BOOL activationStatus = HIWORD(wParameter);
 			if (activationStatus == WA_INACTIVE) ShowWindow(window, SW_HIDE);
