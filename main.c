@@ -8,6 +8,7 @@
 #define STBIW_WINDOWS_UTF8
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#define VK_A 0x41
 #define VK_S 0x53
 #define VK_F 0x46
 
@@ -193,6 +194,12 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 	switch (wParameter) {
 		case VK_ESCAPE:
 			ShowWindow(window, SW_HIDE);
+			return 0;
+
+		case VK_A:
+			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
+			selectionRectangle = screenRectangle;
+			outlineSelection = TRUE;
 			return 0;
 
 		case VK_F:
