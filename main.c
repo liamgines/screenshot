@@ -11,6 +11,7 @@
 #define VK_A 0x41
 #define VK_S 0x53
 #define VK_F 0x46
+#define VK_W 0x57
 
 #define SWAP(TYPE, x, y) \
 do {					 \
@@ -194,6 +195,17 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 	switch (wParameter) {
 		case VK_ESCAPE:
 			ShowWindow(window, SW_HIDE);
+			return 0;
+
+		case VK_W:
+			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
+
+			if (HasArea(selectionRectangle)) {
+				selectionRectangle = (RECT){ 0 };
+				outlineSelection = FALSE;
+			}
+			else ShowWindow(window, SW_HIDE);
+
 			return 0;
 
 		case VK_A:
