@@ -13,6 +13,8 @@
 #define VK_F 0x46
 #define VK_W 0x57
 #define VK_C 0x43
+#define VK_O 0x4F
+#define VK_V 0x56
 
 #define SWAP(TYPE, x, y) \
 do {					 \
@@ -257,6 +259,41 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 	switch (wParameter) {
 		case VK_ESCAPE:
 			ShowWindow(window, SW_HIDE);
+			return 0;
+
+		case VK_O:
+			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000) || CopySelectionToClipboard(window) != 0) return 0;
+
+			SHELLEXECUTEINFOW execInfo = { 0 };
+			execInfo.cbSize = sizeof(execInfo);
+			execInfo.fMask = SEE_MASK_NOCLOSEPROCESS;
+			execInfo.lpVerb = L"open";
+			execInfo.lpFile = L"mspaint";
+			execInfo.nShow = SW_MAXIMIZE;
+			ShellExecuteExW(&execInfo);
+			Sleep(250);
+
+			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput
+			INPUT inputs[4] = {};
+			ZeroMemory(inputs, sizeof(inputs));
+
+			inputs[0].type = INPUT_KEYBOARD;
+			inputs[0].ki.wVk = VK_CONTROL;
+
+			inputs[1].type = INPUT_KEYBOARD;
+			inputs[1].ki.wVk = VK_V;
+
+			inputs[2].type = INPUT_KEYBOARD;
+			inputs[2].ki.wVk = VK_V;
+			inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+
+			inputs[3].type = INPUT_KEYBOARD;
+			inputs[3].ki.wVk = VK_CONTROL;
+			inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+
+			UINT sent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
+
+			CloseHandle(execInfo.hProcess);
 			return 0;
 
 		case VK_C:
