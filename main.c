@@ -12,6 +12,7 @@
 #define VK_S 0x53
 #define VK_F 0x46
 #define VK_W 0x57
+#define VK_C 0x43
 
 #define SWAP(TYPE, x, y) \
 do {					 \
@@ -195,6 +196,68 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 	switch (wParameter) {
 		case VK_ESCAPE:
 			ShowWindow(window, SW_HIDE);
+			return 0;
+
+		case VK_C:
+			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
+
+			selectionRectangle = NormalizeAndTruncate(selectionRectangle);
+			const int SELECTION_WIDTH = GetWidth(selectionRectangle);
+			const int SELECTION_HEIGHT = GetHeight(selectionRectangle);
+			const int SELECTION_AREA = SELECTION_WIDTH * SELECTION_HEIGHT;
+
+			if (!SELECTION_AREA) return 0;
+
+			ShowWindow(window, SW_HIDE);
+
+			BITMAPINFOHEADER header = { 0 };
+			header.biSize = sizeof(header);
+			header.biWidth = SELECTION_WIDTH;
+			header.biHeight = SELECTION_HEIGHT;
+			header.biPlanes = 1;
+			header.biBitCount = 32;
+			header.biCompression = BI_RGB;
+			BITMAPINFO info = { 0 };
+			info.bmiHeader = header;
+
+			HDC copy = CreateCompatibleDC(memory);
+			HBITMAP copyBitmap = CreateCompatibleBitmap(memory, SELECTION_WIDTH, SELECTION_HEIGHT);
+			HBITMAP previousCopyBitmap = SelectObject(copy, copyBitmap);
+
+			BitBlt(copy, 0, 0, SELECTION_WIDTH, SELECTION_HEIGHT,
+				   memory, selectionRectangle.left, selectionRectangle.top, SRCCOPY);
+
+			int headerAndPixelsSize = sizeof(header) + (sizeof(uint32_t) * SELECTION_AREA);
+			char *headerAndPixels = malloc(headerAndPixelsSize);
+			BITMAPINFOHEADER *headerPart = (BITMAPINFOHEADER *) headerAndPixels;
+			uint32_t *selectionPixels = (uint32_t *) (headerAndPixels + sizeof(header));
+
+			*headerPart = header;
+			int scanLinesCopied = GetDIBits(copy, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
+
+			// https://stackoverflow.com/a/72282181/32242805
+			HGLOBAL allocatedMemoryObject = GlobalAlloc(GMEM_MOVEABLE, headerAndPixelsSize);
+			if (allocatedMemoryObject) {
+				if (!OpenClipboard(window))
+					GlobalFree(allocatedMemoryObject);
+				else {
+					EmptyClipboard();
+					char *allocatedMemory = GlobalLock(allocatedMemoryObject);
+					if (allocatedMemory)
+						memcpy(allocatedMemory, headerAndPixels, headerAndPixelsSize);
+
+					GlobalUnlock(allocatedMemoryObject);
+					SetClipboardData(CF_DIB, allocatedMemoryObject);
+					CloseClipboard();
+				}
+			}
+
+			// Clean up
+			free(headerAndPixels);
+			assert(SelectObject(copy, previousCopyBitmap) == copyBitmap);
+			DeleteDC(copy);
+			DeleteObject(copyBitmap);
+
 			return 0;
 
 		case VK_W:
