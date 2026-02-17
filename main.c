@@ -276,6 +276,16 @@ INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
 	return input;
 }
 
+RECT RectangleToSquare(RECT a) {
+	LONG length = MIN(GetWidth(a), GetHeight(a));
+	return (RECT) {
+		.left = a.left,
+		.top = a.top,
+		.right = a.left + length,
+		.bottom = a.top + length
+	};
+}
+
 int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
 		case VK_ESCAPE:
@@ -675,6 +685,11 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			else if (cursorInSelection) {
 				drag = TRUE;
 			}
+
+			if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
+				selectionRectangle = RectangleToSquare(selectionRectangle);
+			}
+
 			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 			BOOL repaint = InvalidateRect(window, &update, TRUE);
 			return 0;
