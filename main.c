@@ -194,6 +194,28 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	return 0;
 }
 
+BOOL CopyToClipboard(HWND window, char *data, int size, UINT format) {
+	// https://stackoverflow.com/a/72282181/32242805
+	HGLOBAL allocatedMemoryObject = GlobalAlloc(GMEM_MOVEABLE, size);
+	if (!allocatedMemoryObject)
+		return FALSE;
+
+	if (!OpenClipboard(window)) {
+		GlobalFree(allocatedMemoryObject);
+		return FALSE;
+	}
+
+	EmptyClipboard();
+	char *allocatedMemory = GlobalLock(allocatedMemoryObject);
+	if (allocatedMemory)
+		memcpy(allocatedMemory, data, size);
+
+	GlobalUnlock(allocatedMemoryObject);
+	SetClipboardData(format, allocatedMemoryObject);
+	CloseClipboard();
+	return TRUE;
+}
+
 LRESULT CopySelectionToClipboard(HWND window) {
 	selectionRectangle = NormalizeAndTruncate(selectionRectangle);
 	const int SELECTION_WIDTH = GetWidth(selectionRectangle);
@@ -229,22 +251,7 @@ LRESULT CopySelectionToClipboard(HWND window) {
 	*headerPart = header;
 	int scanLinesCopied = GetDIBits(copy, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
 
-	// https://stackoverflow.com/a/72282181/32242805
-	HGLOBAL allocatedMemoryObject = GlobalAlloc(GMEM_MOVEABLE, headerAndPixelsSize);
-	if (allocatedMemoryObject) {
-		if (!OpenClipboard(window))
-			GlobalFree(allocatedMemoryObject);
-		else {
-			EmptyClipboard();
-			char *allocatedMemory = GlobalLock(allocatedMemoryObject);
-			if (allocatedMemory)
-				memcpy(allocatedMemory, headerAndPixels, headerAndPixelsSize);
-
-			GlobalUnlock(allocatedMemoryObject);
-			SetClipboardData(CF_DIB, allocatedMemoryObject);
-			CloseClipboard();
-		}
-	}
+	CopyToClipboard(window, headerAndPixels, headerAndPixelsSize, CF_DIB);
 
 	// Clean up
 	free(headerAndPixels);
