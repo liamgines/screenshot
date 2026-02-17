@@ -8,6 +8,7 @@
 #define STBIW_WINDOWS_UTF8
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+
 #define VK_A 0x41
 #define VK_S 0x53
 #define VK_F 0x46
@@ -15,6 +16,11 @@
 #define VK_C 0x43
 #define VK_O 0x4F
 #define VK_V 0x56
+#define VK_E 0x45
+#define VK_H 0x48
+#define VK_B 0x42
+
+#define ARRAY_LENGTH(array) (sizeof(array) / sizeof(array[0]))
 
 #define SWAP(TYPE, x, y) \
 do {					 \
@@ -262,6 +268,14 @@ LRESULT CopySelectionToClipboard(HWND window) {
 	return 0;
 }
 
+INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
+	INPUT input = { 0 };
+	input.type = INPUT_KEYBOARD;
+	input.ki.wVk = virtualKeyCode;
+	if (keyUp) input.ki.dwFlags = KEYEVENTF_KEYUP;
+	return input;
+}
+
 int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	switch (wParameter) {
 		case VK_ESCAPE:
@@ -279,28 +293,62 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 			execInfo.nShow = SW_MAXIMIZE;
 			ShellExecuteExW(&execInfo);
 			Sleep(250);
+			CloseHandle(execInfo.hProcess);
 
 			// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput
-			INPUT inputs[4] = {};
+			INPUT inputs[100] = { 0 };
 			ZeroMemory(inputs, sizeof(inputs));
 
-			inputs[0].type = INPUT_KEYBOARD;
-			inputs[0].ki.wVk = VK_CONTROL;
+			int i = 0;
+			inputs[i++] = KeyInput(VK_CONTROL, FALSE);
+			inputs[i++] = KeyInput(VK_V, FALSE);
+			inputs[i++] = KeyInput(VK_V, TRUE);
+			inputs[i++] = KeyInput(VK_CONTROL, TRUE);
 
-			inputs[1].type = INPUT_KEYBOARD;
-			inputs[1].ki.wVk = VK_V;
+			inputs[i++] = KeyInput(VK_CONTROL, FALSE);
+			inputs[i++] = KeyInput(VK_E, FALSE);
+			inputs[i++] = KeyInput(VK_E, TRUE);
+			inputs[i++] = KeyInput(VK_CONTROL, TRUE);
 
-			inputs[2].type = INPUT_KEYBOARD;
-			inputs[2].ki.wVk = VK_V;
-			inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+			wchar_t selectionWidth[5 + 1 + 1] = { 0 };
+			wchar_t selectionHeight[5 + 1 + 1] = { 0 };
+			swprintf(selectionWidth, sizeof(selectionWidth), L"%d", GetWidth(selectionRectangle));
+			swprintf(selectionHeight, sizeof(selectionHeight), L"%d", GetHeight(selectionRectangle));
 
-			inputs[3].type = INPUT_KEYBOARD;
-			inputs[3].ki.wVk = VK_CONTROL;
-			inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+			int j = 0;
+			while (selectionWidth[j++]) {
+				WORD numberKeyCode = selectionWidth[j - 1];
+				inputs[i++] = KeyInput(numberKeyCode, FALSE);
+				inputs[i++] = KeyInput(numberKeyCode, TRUE);
+			}
 
+			inputs[i++] = KeyInput(VK_TAB, FALSE);
+			inputs[i++] = KeyInput(VK_TAB, TRUE);
+
+			j = 0;
+			while (selectionHeight[j++]) {
+				WORD numberKeyCode = selectionHeight[j - 1];
+				inputs[i++] = KeyInput(numberKeyCode, FALSE);
+				inputs[i++] = KeyInput(numberKeyCode, TRUE);
+			}
+
+			inputs[i++] = KeyInput(VK_RETURN, FALSE);
+			inputs[i++] = KeyInput(VK_RETURN, TRUE);
+
+			inputs[i++] = KeyInput(VK_MENU, FALSE);
+			inputs[i++] = KeyInput(VK_H, FALSE);
+			inputs[i++] = KeyInput(VK_H, TRUE);
+			inputs[i++] = KeyInput(VK_MENU, TRUE);
+
+			inputs[i++] = KeyInput(VK_B, FALSE);
+			inputs[i++] = KeyInput(VK_B, TRUE);
+
+			inputs[i++] = KeyInput(VK_RETURN, FALSE);
+			inputs[i++] = KeyInput(VK_RETURN, TRUE);
+
+			assert(i < ARRAY_LENGTH(inputs));
 			UINT sent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
 
-			CloseHandle(execInfo.hProcess);
 			return 0;
 
 		case VK_C:
