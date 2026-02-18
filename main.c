@@ -696,13 +696,14 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		}
 
 		case WM_MOUSEMOVE: {
-			if (wParameter == MK_LBUTTON && !drag) {
+			// https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mousemove
+			if ((wParameter & MK_LBUTTON) && !drag) {
 				if (selectedXCorner) *selectedXCorner = point.x;
 				if (selectedYCorner) *selectedYCorner = point.y;
 				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
-			else if (wParameter == MK_LBUTTON && drag) {
+			else if ((wParameter & MK_LBUTTON) && drag) {
 				POINT difference = GetDifference(point, previousPosition);
 				selectionRectangle = TranslateRectangle(selectionRectangle, difference);
 				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
