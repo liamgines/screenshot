@@ -277,7 +277,7 @@ INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
 }
 
 RECT RectangleToSquare(RECT a) {
-	LONG length = MIN(GetWidth(a), GetHeight(a));
+	LONG length = MAX(GetWidth(a), GetHeight(a));
 	return (RECT) {
 		.left = a.left,
 		.top = a.top,
