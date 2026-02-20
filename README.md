@@ -7,8 +7,12 @@ Controls
 --------
 `PrtSc` displays the selection screen.<br>
 `Left Click` creates, resizes or moves a selection.<br>
-`Ctrl+S` saves a selection.<br>
 `F` activates a selection outline.<br>
+`Ctrl+A` selects the entire screen.<br>
+`Ctrl+C` copies a selection.<br>
+`Ctrl+O` opens a selection in paint.<br>
+`Ctrl+S` saves a selection.<br>
+`Ctrl+W` deselects, then closes the selection screen.<br>
 `Esc` closes the selection screen.
 
 Installation
