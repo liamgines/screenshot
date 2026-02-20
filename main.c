@@ -16,6 +16,9 @@
 #define VK_C 0x43
 #define VK_O 0x4F
 
+#define VK_Z 0x5A
+#define VK_Y 0x59
+
 #define VK_V 0x56
 #define VK_E 0x45
 #define VK_H 0x48
@@ -287,7 +290,39 @@ RECT RectangleToSquare(RECT a) {
 	};
 }
 
-int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
+typedef struct Selections {
+	RECT data;
+	struct Selections *prev;
+	struct Selections *next;
+} Selections;
+
+void SelectionsFree(Selections *xs) {
+	if (xs) {
+		Selections *next = xs->next;
+		free(xs);
+		SelectionsFree(next);
+	}
+}
+
+Selections *SelectionsAdd(Selections *prev, RECT data) {
+	Selections *selection = malloc(sizeof(Selections));
+	selection->data = data;
+	selection->prev = prev;
+	selection->next = NULL;
+
+	if (prev) {
+		SelectionsFree(prev->next);
+		prev->next = selection;
+	}
+
+	return selection;
+}
+
+Selections *SelectionsCreate(RECT data) {
+	return SelectionsAdd(NULL, data);
+}
+
+int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter, Selections **currentSelection) {
 	switch (wParameter) {
 		case VK_ESCAPE:
 			ShowWindow(window, SW_HIDE);
@@ -385,6 +420,26 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 
 		case VK_F:
 			outlineSelection = !outlineSelection;
+			return 0;
+
+		case VK_Z:
+			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
+
+			if (*currentSelection && (*currentSelection)->prev) {
+				*currentSelection = (*currentSelection)->prev;
+				selectionRectangle = (*currentSelection)->data;
+			}
+
+			return 0;
+
+		case VK_Y:
+			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
+
+			if (*currentSelection && (*currentSelection)->next) {
+				*currentSelection = (*currentSelection)->next;
+				selectionRectangle = (*currentSelection)->data;
+			}
+
 			return 0;
 
 		case VK_S: {
@@ -570,6 +625,10 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	static POINT previousPosition;
 	static LONG *selectedXCorner = NULL;
 	static LONG *selectedYCorner = NULL;
+
+	static Selections *selections = NULL;
+	static Selections *currentSelection = NULL;
+
 	RECT displayRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 	Anchors anchors = GetAnchors(displayRectangle);
 	AnchorBoxes boxes = GetAnchorBoxes(anchors);
@@ -619,7 +678,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			return 0;
 
 		case WM_KEYDOWN:
-			if (HandleKeyDown(window, message, wParameter, lParameter) == 0) {
+			if (HandleKeyDown(window, message, wParameter, lParameter, &currentSelection) == 0) {
 				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 				return 0;
@@ -691,6 +750,14 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				selectionRectangle = RectangleToSquare(selectionRectangle);
 			}
 
+			// Track selection history in list
+			if (!selections) {
+				selections = SelectionsCreate(selectionRectangle);
+				currentSelection = selections;
+			}
+			else
+				currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
+
 			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 			BOOL repaint = InvalidateRect(window, &update, TRUE);
 			return 0;
@@ -717,6 +784,9 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_LBUTTONUP: {
 			// Normalize rectangle on release to ensure that the corner coordinates are consistent for subsequent rectangle transformations
 			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
+
+			currentSelection->data = selectionRectangle;
+
 			// If selection is not visible when left click is released, show default cursor
 			if (!HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
 			drag = FALSE;
@@ -777,6 +847,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			return 0;
 
 		case WM_DESTROY:
+			// Free selection history
+			SelectionsFree(selections);
 			PostQuitMessage(0);
 			return 0;
 
