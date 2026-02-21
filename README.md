@@ -13,6 +13,8 @@ Controls
 `Ctrl+E` opens a selection in paint.<br>
 `Ctrl+S` saves a selection.<br>
 `Ctrl+W` deselects, then closes the selection screen.<br>
+`Ctrl+Y` redoes a selection.<br>
+`Ctrl+Z` undoes a selection.<br>
 `Esc` closes the selection screen.
 
 Installation
