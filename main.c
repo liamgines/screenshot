@@ -14,7 +14,6 @@
 #define VK_F 0x46
 #define VK_W 0x57
 #define VK_C 0x43
-#define VK_O 0x4F
 
 #define VK_Z 0x5A
 #define VK_Y 0x59
@@ -328,7 +327,7 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 			ShowWindow(window, SW_HIDE);
 			return 0;
 
-		case VK_O:
+		case VK_E:
 			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000) || CopySelectionToClipboard(window) != 0) return 0;
 
 			SHELLEXECUTEINFOW execInfo = { 0 };

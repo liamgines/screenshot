@@ -10,7 +10,7 @@ Controls
 `F` activates a selection outline.<br>
 `Ctrl+A` selects the entire screen.<br>
 `Ctrl+C` copies a selection.<br>
-`Ctrl+O` opens a selection in paint.<br>
+`Ctrl+E` opens a selection in paint.<br>
 `Ctrl+S` saves a selection.<br>
 `Ctrl+W` deselects, then closes the selection screen.<br>
 `Esc` closes the selection screen.
