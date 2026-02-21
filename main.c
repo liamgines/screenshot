@@ -715,18 +715,26 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			else if (PtInRect(&boxes.midLeft, point)) {
 				selectedXCorner = &selectionRectangle.left;
 				selectedYCorner = NULL;
+
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.left = selectionRectangle.right - GetHeight(selectionRectangle);
 			}
 			else if (PtInRect(&boxes.midRight, point)) {
 				selectedXCorner = &selectionRectangle.right;
 				selectedYCorner = NULL;
+
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.right = selectionRectangle.left + GetHeight(selectionRectangle);
 			}
 			else if (PtInRect(&boxes.topMid, point)) {
 				selectedXCorner = NULL;
 				selectedYCorner = &selectionRectangle.top;
+
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.top = selectionRectangle.bottom - GetWidth(selectionRectangle);
 			}
 			else if (PtInRect(&boxes.bottomMid, point)) {
 				selectedXCorner = NULL;
 				selectedYCorner = &selectionRectangle.bottom;
+
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.bottom = selectionRectangle.top + GetWidth(selectionRectangle);
 			}
 
 			// Reset selection
@@ -744,10 +752,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			}
 			else if (cursorInSelection) {
 				drag = TRUE;
-			}
 
-			if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
-				selectionRectangle = RectangleToSquare(selectionRectangle);
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle = RectangleToSquare(selectionRectangle);
 			}
 
 			// Track selection history in list
