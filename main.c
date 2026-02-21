@@ -9,6 +9,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+#define VK_1 0x31
+#define VK_2 0x32
+
 #define VK_A 0x41
 #define VK_S 0x53
 #define VK_F 0x46
@@ -321,7 +324,42 @@ Selections *SelectionsCreate(RECT data) {
 	return SelectionsAdd(NULL, data);
 }
 
+int GCD(int a, int b) {
+	if (b == 0) return a;
+
+	return GCD(b, a % b);
+}
+
+SIZE RectangleAspectRatio(RECT a) {
+	int w = GetWidth(a);
+	int h = GetHeight(a);
+	int gcd = GCD(w, h);
+
+	SIZE aspectRatio = { 0 };
+	if (gcd) {
+		aspectRatio.cx = (w / gcd);
+		aspectRatio.cy = (h / gcd);
+	}
+	return aspectRatio;
+}
+
+BOOL AspectRatioEqual(SIZE a, SIZE b) {
+	return (a.cx == b.cx && a.cy == b.cy);
+}
+
+BOOL AspectRatioValid(SIZE a) {
+	return a.cx && a.cy;
+}
+
 int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter, Selections **currentSelection) {
+	static SIZE prevAspectRatio = { 0 };
+	if (!AspectRatioValid(prevAspectRatio)) {
+		prevAspectRatio.cx = 1;
+		prevAspectRatio.cy = 1;
+	}
+
+	SIZE aspectRatio = RectangleAspectRatio(selectionRectangle);
+
 	switch (wParameter) {
 		case VK_ESCAPE:
 			ShowWindow(window, SW_HIDE);
@@ -439,6 +477,30 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 				selectionRectangle = (*currentSelection)->data;
 			}
 
+			return 0;
+
+		case VK_1:
+			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
+				selectionRectangle.right -= prevAspectRatio.cx;
+				selectionRectangle.bottom -= prevAspectRatio.cy;
+			}
+			else {
+				selectionRectangle.right -= aspectRatio.cx;
+				selectionRectangle.bottom -= aspectRatio.cy;
+				prevAspectRatio = aspectRatio;
+			}
+			return 0;
+
+		case VK_2:
+			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
+				selectionRectangle.right += prevAspectRatio.cx;
+				selectionRectangle.bottom += prevAspectRatio.cy;
+			}
+			else {
+				selectionRectangle.right += aspectRatio.cx;
+				selectionRectangle.bottom += aspectRatio.cy;
+				prevAspectRatio = aspectRatio;
+			}
 			return 0;
 
 		case VK_S: {
