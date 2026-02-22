@@ -70,6 +70,7 @@ RECT GetNormalizedRectangle(RECT rectangle) {
 	return rectangle;
 }
 
+// Expects a normalized rectangle
 RECT GetTruncatedRectangle(RECT r) {
 	if (r.left < 0) r.left = 0;
 	if (r.top < 0) r.top = 0;
@@ -343,6 +344,15 @@ SIZE RectangleAspectRatio(RECT a) {
 	return aspectRatio;
 }
 
+BOOL RectangleEqual(RECT a, RECT b) {
+	return (a.left == b.left) && (a.top == b.top) && (a.right == b.right) && (a.bottom == b.bottom);
+}
+
+BOOL RectangleOutOfBounds(RECT a) {
+	a = GetNormalizedRectangle(a);
+	return !RectangleEqual(a, GetTruncatedRectangle(a));
+}
+
 BOOL AspectRatioEqual(SIZE a, SIZE b) {
 	return (a.cx == b.cx && a.cy == b.cy);
 }
@@ -479,7 +489,8 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 
 			return 0;
 
-		case VK_1:
+		case VK_1: {
+			RECT selectionRectangleCopy = selectionRectangle;
 			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
 				selectionRectangle.right -= prevAspectRatio.cx;
 				selectionRectangle.bottom -= prevAspectRatio.cy;
@@ -489,9 +500,14 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 				selectionRectangle.bottom -= aspectRatio.cy;
 				prevAspectRatio = aspectRatio;
 			}
-			return 0;
+			// TODO: Need to fix this to make it consistent when performing other actions (e.g. resizing with different edges selected)
+			if (RectangleOutOfBounds(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
 
-		case VK_2:
+			return 0;
+		}
+
+		case VK_2: {
+			RECT selectionRectangleCopy = selectionRectangle;
 			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
 				selectionRectangle.right += prevAspectRatio.cx;
 				selectionRectangle.bottom += prevAspectRatio.cy;
@@ -501,7 +517,10 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 				selectionRectangle.bottom += aspectRatio.cy;
 				prevAspectRatio = aspectRatio;
 			}
+			if (RectangleOutOfBounds(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
+
 			return 0;
+		}
 
 		case VK_S: {
 			// If 's' is pressed while CTRL is not, do not save
