@@ -1,3 +1,4 @@
+// TODO: ensure behavior when rectangle is not normalized is logical, refactor, save dialog, proportional scaling with mouse?
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <assert.h>
