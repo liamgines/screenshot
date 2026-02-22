@@ -1,4 +1,4 @@
-// TODO: ensure behavior when rectangle is not normalized is logical, refactor, save dialog, proportional scaling with mouse?
+// TODO: ensure behavior when rectangle is not normalized is logical, decide when selections should be added to the history, refactor, save dialog, proportional scaling with mouse?
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <assert.h>
@@ -339,8 +339,8 @@ SIZE RectangleAspectRatio(RECT a) {
 
 	SIZE aspectRatio = { 0 };
 	if (gcd) {
-		aspectRatio.cx = (w / gcd);
-		aspectRatio.cy = (h / gcd);
+		aspectRatio.cx = abs(w / gcd);
+		aspectRatio.cy = abs(h / gcd);
 	}
 	return aspectRatio;
 }
@@ -359,7 +359,17 @@ BOOL AspectRatioEqual(SIZE a, SIZE b) {
 }
 
 BOOL AspectRatioValid(SIZE a) {
-	return a.cx && a.cy;
+	return (a.cx > 0) && (a.cy > 0);
+}
+
+LONG *RectangleBottom(RECT *a) {
+	if (a->bottom >= a->top) return &a->bottom;
+	return &a->top;
+}
+
+LONG *RectangleRight(RECT *a) {
+	if (a->right >= a->left) return &a->right;
+	return &a->left;
 }
 
 int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter, Selections **currentSelection) {
@@ -370,6 +380,9 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 	}
 
 	SIZE aspectRatio = RectangleAspectRatio(selectionRectangle);
+
+	LONG *selectionRight = RectangleRight(&selectionRectangle);
+	LONG *selectionBottom = RectangleBottom(&selectionRectangle);
 
 	switch (wParameter) {
 		case VK_ESCAPE:
@@ -493,16 +506,16 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 		case VK_1: {
 			RECT selectionRectangleCopy = selectionRectangle;
 			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
-				selectionRectangle.right -= prevAspectRatio.cx;
-				selectionRectangle.bottom -= prevAspectRatio.cy;
+				*selectionRight -= prevAspectRatio.cx;
+				*selectionBottom -= prevAspectRatio.cy;
 			}
 			else {
-				selectionRectangle.right -= aspectRatio.cx;
-				selectionRectangle.bottom -= aspectRatio.cy;
+				*selectionRight -= aspectRatio.cx;
+				*selectionBottom -= aspectRatio.cy;
 				prevAspectRatio = aspectRatio;
 			}
-			// TODO: Need to fix this to make it consistent when performing other actions (e.g. resizing with different edges selected)
-			if (RectangleOutOfBounds(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
+			// Ensure this key can only decrease the size of the selection
+			if (RectangleOutOfBounds(selectionRectangle) || GetArea(selectionRectangle) > GetArea(selectionRectangleCopy)) selectionRectangle = selectionRectangleCopy;
 
 			return 0;
 		}
@@ -510,12 +523,12 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 		case VK_2: {
 			RECT selectionRectangleCopy = selectionRectangle;
 			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
-				selectionRectangle.right += prevAspectRatio.cx;
-				selectionRectangle.bottom += prevAspectRatio.cy;
+				*selectionRight += prevAspectRatio.cx;
+				*selectionBottom  += prevAspectRatio.cy;
 			}
 			else {
-				selectionRectangle.right += aspectRatio.cx;
-				selectionRectangle.bottom += aspectRatio.cy;
+				*selectionRight += aspectRatio.cx;
+				*selectionBottom += aspectRatio.cy;
 				prevAspectRatio = aspectRatio;
 			}
 			if (RectangleOutOfBounds(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
