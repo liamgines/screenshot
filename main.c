@@ -789,22 +789,43 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_LBUTTONDOWN: {
 			BOOL cursorInSelection = PtInRect(&displayRectangle, point);
+			int squareLength = MIN(GetWidth(selectionRectangle), GetHeight(selectionRectangle));
 
 			if (PtInRect(&boxes.topLeft, point)) {
 				selectedXCorner = &selectionRectangle.left;
 				selectedYCorner = &selectionRectangle.top;
+
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
+					selectionRectangle.left = selectionRectangle.right - squareLength;
+					selectionRectangle.top = selectionRectangle.bottom - squareLength;
+				}
 			}
 			else if (PtInRect(&boxes.bottomRight, point)) {
 				selectedXCorner = &selectionRectangle.right;
 				selectedYCorner = &selectionRectangle.bottom;
+
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
+					selectionRectangle.right = selectionRectangle.left + squareLength;
+					selectionRectangle.bottom = selectionRectangle.top + squareLength;
+				}
 			}
 			else if (PtInRect(&boxes.bottomLeft, point)) {
 				selectedXCorner = &selectionRectangle.left;
 				selectedYCorner = &selectionRectangle.bottom;
+
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
+					selectionRectangle.left = selectionRectangle.right - squareLength;
+					selectionRectangle.bottom = selectionRectangle.top + squareLength;
+				}
 			}
 			else if (PtInRect(&boxes.topRight, point)) {
 				selectedXCorner = &selectionRectangle.right;
 				selectedYCorner = &selectionRectangle.top;
+
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
+					selectionRectangle.right = selectionRectangle.left + squareLength;
+					selectionRectangle.top = selectionRectangle.bottom - squareLength;
+				}
 			}
 			else if (PtInRect(&boxes.midLeft, point)) {
 				selectedXCorner = &selectionRectangle.left;
