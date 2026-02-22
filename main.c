@@ -515,7 +515,7 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 				prevAspectRatio = aspectRatio;
 			}
 			// Ensure this key can only decrease the size of the selection
-			if (RectangleOutOfBounds(selectionRectangle) || GetArea(selectionRectangle) > GetArea(selectionRectangleCopy)) selectionRectangle = selectionRectangleCopy;
+			if (RectangleOutOfBounds(selectionRectangle) || GetArea(selectionRectangle) > GetArea(selectionRectangleCopy) || !GetArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
 
 			return 0;
 		}
@@ -531,7 +531,7 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 				*selectionBottom += aspectRatio.cy;
 				prevAspectRatio = aspectRatio;
 			}
-			if (RectangleOutOfBounds(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
+			if (RectangleOutOfBounds(selectionRectangle) || !GetArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
 
 			return 0;
 		}
