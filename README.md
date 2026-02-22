@@ -7,6 +7,9 @@ Controls
 --------
 `PrtSc` displays the selection screen.<br>
 `Left Click` creates, resizes or moves a selection.<br>
+`Shift + Left Click` converts a selection to a square.<br>
+`1` proportionally downscales a selection.<br>
+`2` proportionally upscales a selection.<br>
 `F` activates a selection outline.<br>
 `Ctrl+A` selects the entire screen.<br>
 `Ctrl+C` copies a selection.<br>
