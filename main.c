@@ -61,7 +61,7 @@ static HDC screen;
 static HDC memory;
 static HBITMAP memoryBitmap;
 static HBITMAP previousMemoryBitmap;
-static wchar_t *fileDirectory = NULL;
+static wchar_t fileDirectory[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
 static BOOL outlineSelection = FALSE;
 
@@ -984,10 +984,16 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	HANDLE singleInstanceMutex = CreateMutex(NULL, TRUE, L"Single Instance Mutex for Screenshot Application");
 	if (GetLastError()) return 1;
 
-	if (wcslen(commandLine)) {
-		fileDirectory = commandLine;
-		assert(DirectoryExists(fileDirectory));
+	if (DirectoryExists(commandLine)) wcscpy(fileDirectory, commandLine);
+	else {
+		wchar_t usernamePlaceholder[] = L"%USERNAME%";
+		wchar_t username[MAX_PATH];
+		DWORD charactersStoredOrRequired = ExpandEnvironmentStringsW(usernamePlaceholder, username, MAX_PATH);
+		assert(charactersStoredOrRequired <= MAX_PATH);
+		int charactersWritten = swprintf(fileDirectory, MAX_PATH, L"C:\\Users\\%s\\Desktop", username);
+		assert(charactersWritten > 0);
 	}
+	assert(DirectoryExists(fileDirectory));
 
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
