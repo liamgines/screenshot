@@ -272,7 +272,7 @@ LRESULT CopySelectionToClipboard(HWND window) {
 
 	// Clean up
 	free(headerAndPixels);
-	assert(SelectObject(copy, previousCopyBitmap) == copyBitmap);
+	SelectObject(copy, previousCopyBitmap);
 	DeleteDC(copy);
 	DeleteObject(copyBitmap);
 
@@ -758,7 +758,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_DISPLAYCHANGE:
 			if (IsWindowVisible(window)) ShowWindow(window, SW_HIDE);
 
-			assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);
+			SelectObject(memory, previousMemoryBitmap);
 			DeleteDC(memory);
 			DeleteObject(memoryBitmap);
 			memory = CreateCompatibleDC(screen);
@@ -942,7 +942,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			HBITMAP previousSceneBitmap = SelectObject(scene, sceneBitmap);
 			HBRUSH backgroundColor = CreateSolidBrush(RGB(0, 0, 0));
 
-			assert(FillRect(scene, &sceneCoords, backgroundColor));
+			FillRect(scene, &sceneCoords, backgroundColor);
 			BLENDFUNCTION blend = { 0 };
 			blend.BlendOp = AC_SRC_OVER;
 			blend.SourceConstantAlpha = 128;
@@ -974,7 +974,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 			// Clean up
 			DeleteObject(backgroundColor);
-			assert(SelectObject(scene, previousSceneBitmap) == sceneBitmap);
+			SelectObject(scene, previousSceneBitmap);
 			DeleteDC(scene);
 			DeleteObject(sceneBitmap);
 			EndPaint(window, &paint);
@@ -1004,7 +1004,7 @@ BOOL GetSettingsPath(wchar_t *d) {
 
 BOOL LoadConfig() {
 	wchar_t settingsPath[MAX_PATH];
-	assert(GetSettingsPath(settingsPath));
+	GetSettingsPath(settingsPath);
 	KEY_SCREEN_CAPTURE = GetPrivateProfileInt(L"keys", L"SCREEN_CAPTURE", VK_SNAPSHOT, settingsPath);
 	return TRUE;
 }
@@ -1025,8 +1025,11 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	if (GetLastError()) return 1;
 
 	if (DirectoryExists(commandLine)) wcscpy(fileDirectory, commandLine);
-	else							  assert(GetExeDirectory(fileDirectory));
-	assert(DirectoryExists(fileDirectory));
+	else							  GetExeDirectory(fileDirectory);
+	if (!DirectoryExists(fileDirectory)) {
+		MessageBoxW(NULL, L"Executable directory could not be found.", NULL, MB_OK | MB_ICONERROR);
+		return 1;
+	}
 
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
@@ -1078,7 +1081,7 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 
 	// Clean up
 	ReleaseDC(SCREEN_HANDLE, screen);
-	assert(SelectObject(memory, previousMemoryBitmap) == memoryBitmap);
+	SelectObject(memory, previousMemoryBitmap);
 	DeleteDC(memory);
 	DeleteObject(memoryBitmap);
 
