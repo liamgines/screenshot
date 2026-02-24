@@ -65,7 +65,7 @@ static wchar_t fileDirectory[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
 static BOOL outlineSelection = FALSE;
 
-static char KEY_CAPTURE_SCREEN;
+static char KEY_SCREEN_CAPTURE;
 
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
@@ -1003,7 +1003,7 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 
 	wchar_t settingsPath[MAX_PATH];
 	assert(GetSettingsPath(settingsPath));
-	KEY_CAPTURE_SCREEN = GetPrivateProfileInt(L"keys", L"CAPTURE_SCREEN", VK_SNAPSHOT, settingsPath);
+	KEY_SCREEN_CAPTURE = GetPrivateProfileInt(L"keys", L"SCREEN_CAPTURE", VK_SNAPSHOT, settingsPath);
 
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
@@ -1032,7 +1032,10 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
 
-	RegisterHotKey(window, 0, NULL, KEY_CAPTURE_SCREEN);
+	if (!RegisterHotKey(window, 0, NULL, KEY_SCREEN_CAPTURE)) {
+		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
+		return 1;
+	}
 	ShowWindow(window, SW_HIDE);
 
 	InitializeCriticalSection(&criticalSection);
