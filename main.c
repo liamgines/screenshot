@@ -18,6 +18,7 @@
 #define VK_F 0x46
 #define VK_W 0x57
 #define VK_C 0x43
+#define VK_R 0x52
 
 #define VK_Z 0x5A
 #define VK_Y 0x59
@@ -65,7 +66,7 @@ static wchar_t fileDirectory[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
 static BOOL outlineSelection = FALSE;
 
-static char KEY_SCREEN_CAPTURE;
+static char KEY_SCREEN_CAPTURE = 0;
 
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
@@ -389,6 +390,16 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 	switch (wParameter) {
 		case VK_ESCAPE:
 			ShowWindow(window, SW_HIDE);
+			return 0;
+
+		case VK_R:
+			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
+			LoadConfig();
+			if (!UpdateConfig(window)) {
+				DestroyWindow(window);
+				return 1;
+			}
+
 			return 0;
 
 		case VK_E:
@@ -991,6 +1002,22 @@ BOOL GetSettingsPath(wchar_t *d) {
 	return (PathCombine(d, exeDirectory, L"screenshot.ini") != NULL);
 }
 
+BOOL LoadConfig() {
+	wchar_t settingsPath[MAX_PATH];
+	assert(GetSettingsPath(settingsPath));
+	KEY_SCREEN_CAPTURE = GetPrivateProfileInt(L"keys", L"SCREEN_CAPTURE", VK_SNAPSHOT, settingsPath);
+	return TRUE;
+}
+
+BOOL UpdateConfig(window) {
+	UnregisterHotKey(window, 0);
+	if (!RegisterHotKey(window, 0, NULL, KEY_SCREEN_CAPTURE)) {
+		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
+		return FALSE;
+	}
+	return TRUE;
+}
+
 int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR commandLine, int visibility) {
 	// https://stackoverflow.com/a/33531179/32242805
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
@@ -1000,10 +1027,6 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	if (DirectoryExists(commandLine)) wcscpy(fileDirectory, commandLine);
 	else							  assert(GetExeDirectory(fileDirectory));
 	assert(DirectoryExists(fileDirectory));
-
-	wchar_t settingsPath[MAX_PATH];
-	assert(GetSettingsPath(settingsPath));
-	KEY_SCREEN_CAPTURE = GetPrivateProfileInt(L"keys", L"SCREEN_CAPTURE", VK_SNAPSHOT, settingsPath);
 
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
@@ -1032,10 +1055,12 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
 
-	if (!RegisterHotKey(window, 0, NULL, KEY_SCREEN_CAPTURE)) {
-		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
+	LoadConfig();
+	if (!UpdateConfig(window)) {
+		// TODO: Clean up?
 		return 1;
 	}
+
 	ShowWindow(window, SW_HIDE);
 
 	InitializeCriticalSection(&criticalSection);
