@@ -65,6 +65,8 @@ static wchar_t fileDirectory[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
 static BOOL outlineSelection = FALSE;
 
+static char KEY_CAPTURE_SCREEN;
+
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
 	if (rectangle.bottom - rectangle.top < 0) SWAP(LONG, rectangle.bottom, rectangle.top);
@@ -983,6 +985,12 @@ BOOL GetExeDirectory(wchar_t *d) {
 	return (PathCchRemoveFileSpec(d, MAX_PATH) == S_OK);
 }
 
+BOOL GetSettingsPath(wchar_t *d) {
+	wchar_t exeDirectory[MAX_PATH];
+	GetExeDirectory(exeDirectory);
+	return (PathCombine(d, exeDirectory, L"screenshot.ini") != NULL);
+}
+
 int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR commandLine, int visibility) {
 	// https://stackoverflow.com/a/33531179/32242805
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
@@ -991,8 +999,11 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 
 	if (DirectoryExists(commandLine)) wcscpy(fileDirectory, commandLine);
 	else							  assert(GetExeDirectory(fileDirectory));
-
 	assert(DirectoryExists(fileDirectory));
+
+	wchar_t settingsPath[MAX_PATH];
+	assert(GetSettingsPath(settingsPath));
+	KEY_CAPTURE_SCREEN = GetPrivateProfileInt(L"keys", L"CAPTURE_SCREEN", VK_SNAPSHOT, settingsPath);
 
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
@@ -1021,7 +1032,7 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
 
-	RegisterHotKey(window, 0, NULL, VK_SNAPSHOT);
+	RegisterHotKey(window, 0, NULL, KEY_CAPTURE_SCREEN);
 	ShowWindow(window, SW_HIDE);
 
 	InitializeCriticalSection(&criticalSection);
