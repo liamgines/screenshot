@@ -978,6 +978,11 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	}
 }
 
+BOOL GetExeDirectory(wchar_t *d) {
+	if (GetModuleFileName(NULL, d, MAX_PATH) <= 0) return FALSE;
+	return (PathCchRemoveFileSpec(d, MAX_PATH) == S_OK);
+}
+
 int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR commandLine, int visibility) {
 	// https://stackoverflow.com/a/33531179/32242805
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
@@ -985,14 +990,8 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	if (GetLastError()) return 1;
 
 	if (DirectoryExists(commandLine)) wcscpy(fileDirectory, commandLine);
-	else {
-		wchar_t usernamePlaceholder[] = L"%USERNAME%";
-		wchar_t username[MAX_PATH];
-		DWORD charactersStoredOrRequired = ExpandEnvironmentStringsW(usernamePlaceholder, username, MAX_PATH);
-		assert(charactersStoredOrRequired <= MAX_PATH);
-		int charactersWritten = swprintf(fileDirectory, MAX_PATH, L"C:\\Users\\%s\\Desktop", username);
-		assert(charactersWritten > 0);
-	}
+	else							  assert(GetExeDirectory(fileDirectory));
+
 	assert(DirectoryExists(fileDirectory));
 
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
