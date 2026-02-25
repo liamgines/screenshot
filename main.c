@@ -10,19 +10,6 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-#define VK_1 0x31
-#define VK_2 0x32
-
-#define VK_A 0x41
-#define VK_S 0x53
-#define VK_F 0x46
-#define VK_W 0x57
-#define VK_C 0x43
-#define VK_R 0x52
-
-#define VK_Z 0x5A
-#define VK_Y 0x59
-
 #define VK_V 0x56
 #define VK_E 0x45
 #define VK_H 0x48
@@ -68,9 +55,33 @@ static BOOL outlineSelection = FALSE;
 
 static char KEY_SCREEN_CAPTURE = 0;
 
-#define ID_SELECTION_OUTLINE 40002
+#define ID_CLOSE 40002
+#define ID_OUTLINE_SELECTION 40003
+#define ID_RELOAD_CONFIG 40004
+#define ID_OPEN_PAINT 40005
+#define ID_COPY 40006
+#define ID_DESELECT 40007
+#define ID_SELECT_ALL 40008
+#define ID_UNDO 40009
+#define ID_REDO 40010
+#define ID_UPSCALE 40011
+#define ID_DOWNSCALE 40012
+#define ID_SAVE 40013
+
+// TODO: Specify modifier keys (e.g. CTRL)
 ACCEL shortcuts[] = {
-	{.fVirt = FVIRTKEY, .key = 'F', .cmd = ID_SELECTION_OUTLINE}
+	{ .fVirt = FVIRTKEY, .key = VK_ESCAPE, .cmd = ID_CLOSE },
+	{ .fVirt = FVIRTKEY, .key = 'F', .cmd = ID_OUTLINE_SELECTION },
+	{ .fVirt = FVIRTKEY, .key = 'R', .cmd = ID_RELOAD_CONFIG },
+	{ .fVirt = FVIRTKEY, .key = 'E', .cmd = ID_OPEN_PAINT },
+	{ .fVirt = FVIRTKEY, .key = 'C', .cmd = ID_COPY },
+	{ .fVirt = FVIRTKEY, .key = 'W', .cmd = ID_DESELECT },
+	{ .fVirt = FVIRTKEY, .key = 'A', .cmd = ID_SELECT_ALL },
+	{ .fVirt = FVIRTKEY, .key = 'Z', .cmd = ID_UNDO },
+	{ .fVirt = FVIRTKEY, .key = 'Y', .cmd = ID_REDO },
+	{ .fVirt = FVIRTKEY, .key = '2', .cmd = ID_UPSCALE },
+	{ .fVirt = FVIRTKEY, .key = '1', .cmd = ID_DOWNSCALE },
+	{ .fVirt = FVIRTKEY, .key = 'S', .cmd = ID_SAVE },
 };
 
 RECT GetNormalizedRectangle(RECT rectangle) {
@@ -380,7 +391,7 @@ LONG *RectangleRight(RECT *a) {
 	return &a->left;
 }
 
-int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter, Selections **currentSelection) {
+int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter, Selections **currentSelection) {
 	static SIZE prevAspectRatio = { 0 };
 	if (!AspectRatioValid(prevAspectRatio)) {
 		prevAspectRatio.cx = 1;
@@ -392,13 +403,17 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 	LONG *selectionRight = RectangleRight(&selectionRectangle);
 	LONG *selectionBottom = RectangleBottom(&selectionRectangle);
 
-	switch (wParameter) {
-		case VK_ESCAPE:
+	WORD command = LOWORD(wParameter);
+	switch (command) {
+		case ID_CLOSE:
 			ShowWindow(window, SW_HIDE);
 			return 0;
 
-		case VK_R:
-			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
+		case ID_OUTLINE_SELECTION:
+			outlineSelection = !outlineSelection;
+			return 0;
+
+		case ID_RELOAD_CONFIG:
 			LoadConfig();
 			if (!UpdateConfig(window)) {
 				DestroyWindow(window);
@@ -407,8 +422,8 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 
 			return 0;
 
-		case VK_E:
-			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000) || CopySelectionToClipboard(window) != 0) return 0;
+		case ID_OPEN_PAINT:
+			if (CopySelectionToClipboard(window) != 0) return 0;
 
 			SHELLEXECUTEINFOW execInfo = { 0 };
 			execInfo.cbSize = sizeof(execInfo);
@@ -476,13 +491,10 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 
 			return 0;
 
-		case VK_C:
-			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
+		case ID_COPY:
 			return CopySelectionToClipboard(window);
 
-		case VK_W:
-			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
-
+		case ID_DESELECT:
 			if (HasArea(selectionRectangle)) {
 				selectionRectangle = (RECT){ 0 };
 				outlineSelection = FALSE;
@@ -491,15 +503,12 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 
 			return 0;
 
-		case VK_A:
-			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
+		case ID_SELECT_ALL:
 			selectionRectangle = screenRectangle;
 			outlineSelection = TRUE;
 			return 0;
 
-		case VK_Z:
-			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
-
+		case ID_UNDO:
 			if (*currentSelection && (*currentSelection)->prev) {
 				*currentSelection = (*currentSelection)->prev;
 				selectionRectangle = (*currentSelection)->data;
@@ -507,9 +516,7 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 
 			return 0;
 
-		case VK_Y:
-			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
-
+		case ID_REDO:
 			if (*currentSelection && (*currentSelection)->next) {
 				*currentSelection = (*currentSelection)->next;
 				selectionRectangle = (*currentSelection)->data;
@@ -517,7 +524,7 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 
 			return 0;
 
-		case VK_1: {
+		case ID_DOWNSCALE: {
 			RECT selectionRectangleCopy = selectionRectangle;
 			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
 				*selectionRight -= prevAspectRatio.cx;
@@ -534,7 +541,7 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 			return 0;
 		}
 
-		case VK_2: {
+		case ID_UPSCALE: {
 			RECT selectionRectangleCopy = selectionRectangle;
 			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
 				*selectionRight += prevAspectRatio.cx;
@@ -550,10 +557,7 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 			return 0;
 		}
 
-		case VK_S: {
-			// If 's' is pressed while CTRL is not, do not save
-			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
-
+		case ID_SAVE: {
 			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 			const int SELECTION_WIDTH = GetWidth(selectionRectangle);
 			const int SELECTION_HEIGHT = GetHeight(selectionRectangle);
@@ -786,17 +790,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			return 0;
 
 		case WM_COMMAND:
-			switch (LOWORD(wParameter)) {
-				case ID_SELECTION_OUTLINE:
-					outlineSelection = !outlineSelection;
-					RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
-					BOOL repaint = InvalidateRect(window, &update, TRUE);
-					return 0;
-			}
-			return 0;
-
-		case WM_KEYDOWN:
-			if (HandleKeyDown(window, message, wParameter, lParameter, &currentSelection) == 0) {
+			if (HandleKeyCommand(window, message, wParameter, lParameter, &currentSelection) == 0) {
 				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 				return 0;
