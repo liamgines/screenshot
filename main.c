@@ -55,6 +55,7 @@ static BOOL outlineSelection = FALSE;
 
 static char KEY_SCREEN_CAPTURE = 0;
 
+#define NUM_SHORTCUTS 12
 HACCEL shortcutTable = NULL;
 #define ID_CLOSE 40002
 #define ID_OUTLINE_SELECTION 40003
@@ -68,6 +69,10 @@ HACCEL shortcutTable = NULL;
 #define ID_UPSCALE 40011
 #define ID_DOWNSCALE 40012
 #define ID_SAVE 40013
+
+#define SHIFT_STRING L"SHIFT"
+#define CTRL_STRING L"CTRL"
+#define ALT_STRING L"ALT"
 
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
@@ -992,6 +997,30 @@ BOOL GetSettingsPath(wchar_t *d) {
 	return (PathCombine(d, exeDirectory, L"screenshot.ini") != NULL);
 }
 
+void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, wchar_t *configVar) {
+	wchar_t settingsPath[MAX_PATH];
+	GetSettingsPath(settingsPath);
+
+	wchar_t keyBuffer[MAX_PATH];
+	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVar, NULL, keyBuffer, MAX_PATH, settingsPath);
+	CharUpperW(keyBuffer);
+
+	if (!charactersCopied) {
+		*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = cmd };
+		return;
+	}
+
+	*shortcut = (ACCEL) { .fVirt = FVIRTKEY, .key = 0, .cmd = cmd };
+
+	for (int i = 0; keyBuffer[i]; i++) {
+		if (keyBuffer[i] == '+' || IsCharSpaceW(keyBuffer[i])) continue;
+		else if (wcsncmp(&keyBuffer[i], SHIFT_STRING, wcslen(SHIFT_STRING)) == 0) shortcut->fVirt |= FSHIFT;
+		else if (wcsncmp(&keyBuffer[i], CTRL_STRING, wcslen(CTRL_STRING)) == 0) shortcut->fVirt |= FCONTROL;
+		else if (wcsncmp(&keyBuffer[i], ALT_STRING, wcslen(ALT_STRING)) == 0) shortcut->fVirt |= FALT;
+		else shortcut->key = keyBuffer[i];
+	}
+}
+
 BOOL LoadConfig() {
 	wchar_t settingsPath[MAX_PATH];
 	GetSettingsPath(settingsPath);
@@ -1003,36 +1032,24 @@ BOOL LoadConfig() {
 		shortcutTable = NULL;
 	}
 
-	// TODO: Specify modifier keys (e.g. CTRL)
-	ACCEL shortcuts[] = {
-		{.fVirt = FVIRTKEY, .key = VK_ESCAPE, .cmd = ID_CLOSE },
-		{.fVirt = FVIRTKEY, .key = 'F', .cmd = ID_OUTLINE_SELECTION },
-		{.fVirt = FVIRTKEY, .key = 'R', .cmd = ID_RELOAD_CONFIG },
-		{.fVirt = FVIRTKEY, .key = 'E', .cmd = ID_OPEN_PAINT },
-		{.fVirt = FVIRTKEY, .key = 'C', .cmd = ID_COPY },
-		{.fVirt = FVIRTKEY, .key = 'W', .cmd = ID_DESELECT },
-		{.fVirt = FVIRTKEY, .key = 'A', .cmd = ID_SELECT_ALL },
-		{.fVirt = FVIRTKEY, .key = 'Z', .cmd = ID_UNDO },
-		{.fVirt = FVIRTKEY, .key = 'Y', .cmd = ID_REDO },
-		{.fVirt = FVIRTKEY, .key = '2', .cmd = ID_UPSCALE },
-		{.fVirt = FVIRTKEY, .key = '1', .cmd = ID_DOWNSCALE },
-		{.fVirt = FVIRTKEY, .key = 'S', .cmd = ID_SAVE },
-	};
+	ACCEL shortcuts[NUM_SHORTCUTS];
+	SetShortcut(&shortcuts[0], NULL, VK_ESCAPE, ID_CLOSE, L"CLOSE");
+	SetShortcut(&shortcuts[1], NULL, 'F', ID_OUTLINE_SELECTION, L"OUTLINE_SELECTION");
+	SetShortcut(&shortcuts[2], FCONTROL, 'R', ID_RELOAD_CONFIG, L"RELOAD_CONFIG");
+	SetShortcut(&shortcuts[3], FCONTROL, 'E', ID_OPEN_PAINT, L"OPEN_PAINT");
+	SetShortcut(&shortcuts[4], FCONTROL, 'C', ID_COPY, L"COPY");
+	SetShortcut(&shortcuts[5], FCONTROL, 'W', ID_DESELECT, L"DESELECT");
+	SetShortcut(&shortcuts[6], FCONTROL, 'A', ID_SELECT_ALL, L"SELECT_ALL");
+	SetShortcut(&shortcuts[7], FCONTROL, 'Z', ID_UNDO, L"UNDO");
+	SetShortcut(&shortcuts[8], FCONTROL, 'Y', ID_REDO, L"REDO");
+	SetShortcut(&shortcuts[9], NULL, '2', ID_UPSCALE, L"UPSCALE");
+	SetShortcut(&shortcuts[10], NULL, '1', ID_DOWNSCALE, L"DOWNSCALE");
+	SetShortcut(&shortcuts[11], FCONTROL, 'S', ID_SAVE, L"SAVE");
 
-	shortcuts[0].key = GetPrivateProfileInt(L"keys", L"CLOSE", shortcuts[0].key, settingsPath);
-	shortcuts[1].key = GetPrivateProfileInt(L"keys", L"OUTLINE_SELECTION", shortcuts[1].key, settingsPath);
-	shortcuts[2].key = GetPrivateProfileInt(L"keys", L"RELOAD_CONFIG", shortcuts[2].key, settingsPath);
-	shortcuts[3].key = GetPrivateProfileInt(L"keys", L"OPEN_PAINT", shortcuts[3].key, settingsPath);
-	shortcuts[4].key = GetPrivateProfileInt(L"keys", L"COPY", shortcuts[4].key, settingsPath);
-	shortcuts[5].key = GetPrivateProfileInt(L"keys", L"DESELECT", shortcuts[5].key, settingsPath);
-	shortcuts[6].key = GetPrivateProfileInt(L"keys", L"SELECT_ALL", shortcuts[6].key, settingsPath);
-	shortcuts[7].key = GetPrivateProfileInt(L"keys", L"UNDO", shortcuts[7].key, settingsPath);
-	shortcuts[8].key = GetPrivateProfileInt(L"keys", L"REDO", shortcuts[8].key, settingsPath);
-	shortcuts[9].key = GetPrivateProfileInt(L"keys", L"UPSCALE", shortcuts[9].key, settingsPath);
-	shortcuts[10].key = GetPrivateProfileInt(L"keys", L"DOWNSCALE", shortcuts[10].key, settingsPath);
-	shortcuts[11].key = GetPrivateProfileInt(L"keys", L"SAVE", shortcuts[11].key, settingsPath);
+	assert(NUM_SHORTCUTS == ARRAY_LENGTH(shortcuts));
 
 	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LENGTH(shortcuts));
+
 	return TRUE;
 }
 
