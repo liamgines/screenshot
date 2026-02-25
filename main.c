@@ -55,6 +55,7 @@ static BOOL outlineSelection = FALSE;
 
 static char KEY_SCREEN_CAPTURE = 0;
 
+HACCEL shortcutTable = NULL;
 #define ID_CLOSE 40002
 #define ID_OUTLINE_SELECTION 40003
 #define ID_RELOAD_CONFIG 40004
@@ -67,22 +68,6 @@ static char KEY_SCREEN_CAPTURE = 0;
 #define ID_UPSCALE 40011
 #define ID_DOWNSCALE 40012
 #define ID_SAVE 40013
-
-// TODO: Specify modifier keys (e.g. CTRL)
-ACCEL shortcuts[] = {
-	{ .fVirt = FVIRTKEY, .key = VK_ESCAPE, .cmd = ID_CLOSE },
-	{ .fVirt = FVIRTKEY, .key = 'F', .cmd = ID_OUTLINE_SELECTION },
-	{ .fVirt = FVIRTKEY, .key = 'R', .cmd = ID_RELOAD_CONFIG },
-	{ .fVirt = FVIRTKEY, .key = 'E', .cmd = ID_OPEN_PAINT },
-	{ .fVirt = FVIRTKEY, .key = 'C', .cmd = ID_COPY },
-	{ .fVirt = FVIRTKEY, .key = 'W', .cmd = ID_DESELECT },
-	{ .fVirt = FVIRTKEY, .key = 'A', .cmd = ID_SELECT_ALL },
-	{ .fVirt = FVIRTKEY, .key = 'Z', .cmd = ID_UNDO },
-	{ .fVirt = FVIRTKEY, .key = 'Y', .cmd = ID_REDO },
-	{ .fVirt = FVIRTKEY, .key = '2', .cmd = ID_UPSCALE },
-	{ .fVirt = FVIRTKEY, .key = '1', .cmd = ID_DOWNSCALE },
-	{ .fVirt = FVIRTKEY, .key = 'S', .cmd = ID_SAVE },
-};
 
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
@@ -1011,6 +996,43 @@ BOOL LoadConfig() {
 	wchar_t settingsPath[MAX_PATH];
 	GetSettingsPath(settingsPath);
 	KEY_SCREEN_CAPTURE = GetPrivateProfileInt(L"keys", L"SCREEN_CAPTURE", VK_SNAPSHOT, settingsPath);
+
+	// If shortcut table already exists, destroy it
+	if (shortcutTable) {
+		DestroyAcceleratorTable(shortcutTable);
+		shortcutTable = NULL;
+	}
+
+	// TODO: Specify modifier keys (e.g. CTRL)
+	ACCEL shortcuts[] = {
+		{.fVirt = FVIRTKEY, .key = VK_ESCAPE, .cmd = ID_CLOSE },
+		{.fVirt = FVIRTKEY, .key = 'F', .cmd = ID_OUTLINE_SELECTION },
+		{.fVirt = FVIRTKEY, .key = 'R', .cmd = ID_RELOAD_CONFIG },
+		{.fVirt = FVIRTKEY, .key = 'E', .cmd = ID_OPEN_PAINT },
+		{.fVirt = FVIRTKEY, .key = 'C', .cmd = ID_COPY },
+		{.fVirt = FVIRTKEY, .key = 'W', .cmd = ID_DESELECT },
+		{.fVirt = FVIRTKEY, .key = 'A', .cmd = ID_SELECT_ALL },
+		{.fVirt = FVIRTKEY, .key = 'Z', .cmd = ID_UNDO },
+		{.fVirt = FVIRTKEY, .key = 'Y', .cmd = ID_REDO },
+		{.fVirt = FVIRTKEY, .key = '2', .cmd = ID_UPSCALE },
+		{.fVirt = FVIRTKEY, .key = '1', .cmd = ID_DOWNSCALE },
+		{.fVirt = FVIRTKEY, .key = 'S', .cmd = ID_SAVE },
+	};
+
+	shortcuts[0].key = GetPrivateProfileInt(L"keys", L"CLOSE", shortcuts[0].key, settingsPath);
+	shortcuts[1].key = GetPrivateProfileInt(L"keys", L"OUTLINE_SELECTION", shortcuts[1].key, settingsPath);
+	shortcuts[2].key = GetPrivateProfileInt(L"keys", L"RELOAD_CONFIG", shortcuts[2].key, settingsPath);
+	shortcuts[3].key = GetPrivateProfileInt(L"keys", L"OPEN_PAINT", shortcuts[3].key, settingsPath);
+	shortcuts[4].key = GetPrivateProfileInt(L"keys", L"COPY", shortcuts[4].key, settingsPath);
+	shortcuts[5].key = GetPrivateProfileInt(L"keys", L"DESELECT", shortcuts[5].key, settingsPath);
+	shortcuts[6].key = GetPrivateProfileInt(L"keys", L"SELECT_ALL", shortcuts[6].key, settingsPath);
+	shortcuts[7].key = GetPrivateProfileInt(L"keys", L"UNDO", shortcuts[7].key, settingsPath);
+	shortcuts[8].key = GetPrivateProfileInt(L"keys", L"REDO", shortcuts[8].key, settingsPath);
+	shortcuts[9].key = GetPrivateProfileInt(L"keys", L"UPSCALE", shortcuts[9].key, settingsPath);
+	shortcuts[10].key = GetPrivateProfileInt(L"keys", L"DOWNSCALE", shortcuts[10].key, settingsPath);
+	shortcuts[11].key = GetPrivateProfileInt(L"keys", L"SAVE", shortcuts[11].key, settingsPath);
+
+	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LENGTH(shortcuts));
 	return TRUE;
 }
 
@@ -1020,6 +1042,7 @@ BOOL UpdateConfig(window) {
 		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
 		return FALSE;
 	}
+
 	return TRUE;
 }
 
@@ -1063,7 +1086,6 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
 
-	HACCEL shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LENGTH(shortcuts));
 	LoadConfig();
 	if (!UpdateConfig(window)) {
 		// TODO: Clean up?
