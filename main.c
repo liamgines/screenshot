@@ -1014,7 +1014,9 @@ void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, 
 
 	int i = 0;
 	while (keyBuffer[i]) {
-		if (keyBuffer[i] == '+' || IsCharSpaceW(keyBuffer[i])) continue;
+		if (keyBuffer[i] == '+' || IsCharSpaceW(keyBuffer[i])) {
+			i += 1;
+		}
 		else if (wcsncmp(&keyBuffer[i], SHIFT_STRING, wcslen(SHIFT_STRING)) == 0) {
 			shortcut->fVirt |= FSHIFT;
 			i += wcslen(SHIFT_STRING);
@@ -1037,7 +1039,10 @@ void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, 
 BOOL LoadConfig() {
 	wchar_t settingsPath[MAX_PATH];
 	GetSettingsPath(settingsPath);
-	KEY_SCREEN_CAPTURE = GetPrivateProfileInt(L"keys", L"SCREEN_CAPTURE", VK_SNAPSHOT, settingsPath);
+
+	ACCEL screenCaptureShortcut = { 0 };
+	SetShortcut(&screenCaptureShortcut, NULL, VK_SNAPSHOT, NULL, L"SCREEN_CAPTURE");
+	KEY_SCREEN_CAPTURE = screenCaptureShortcut.key;
 
 	// If shortcut table already exists, destroy it
 	if (shortcutTable) {
