@@ -1109,6 +1109,17 @@ BOOL LoadConfig() {
 }
 
 BOOL UpdateConfig(window) {
+	wchar_t exeDirectory[MAX_PATH];
+	wchar_t settingsPath[MAX_PATH];
+	GetExeDirectory(exeDirectory);
+	GetSettingsPath(settingsPath);
+	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", L"FILE_PATH", exeDirectory, fileDirectory, MAX_PATH, settingsPath);
+
+	if (!DirectoryExists(fileDirectory)) {
+		MessageBoxW(NULL, L"Save location could not be found. Check the FILE_PATH variable in your config.", NULL, MB_OK | MB_ICONERROR);
+		return FALSE;
+	}
+
 	UnregisterHotKey(window, 0);
 	if (!RegisterHotKey(window, 0, NULL, KEY_SCREEN_CAPTURE)) {
 		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
@@ -1123,13 +1134,6 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
 	HANDLE singleInstanceMutex = CreateMutex(NULL, TRUE, L"Single Instance Mutex for Screenshot Application");
 	if (GetLastError()) return 1;
-
-	if (DirectoryExists(commandLine)) wcscpy(fileDirectory, commandLine);
-	else							  GetExeDirectory(fileDirectory);
-	if (!DirectoryExists(fileDirectory)) {
-		MessageBoxW(NULL, L"Executable directory could not be found.", NULL, MB_OK | MB_ICONERROR);
-		return 1;
-	}
 
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
