@@ -6,6 +6,7 @@
 #include <shlwapi.h>	// https://stackoverflow.com/a/49674208/32242805
 #include <stdio.h>
 #include <stdint.h>
+#include <intsafe.h>
 #define STBIW_WINDOWS_UTF8
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -73,6 +74,7 @@ HACCEL shortcutTable = NULL;
 #define SHIFT_STRING L"SHIFT"
 #define CTRL_STRING L"CTRL"
 #define ALT_STRING L"ALT"
+#define HEX_PREFIX L"0X"
 
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
@@ -1028,6 +1030,20 @@ void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, 
 		else if (wcsncmp(&keyBuffer[i], ALT_STRING, wcslen(ALT_STRING)) == 0) {
 			shortcut->fVirt |= FALT;
 			i += wcslen(ALT_STRING);
+		}
+		else if (wcsncmp(&keyBuffer[i], HEX_PREFIX, wcslen(HEX_PREFIX)) == 0) {
+			int j = i + wcslen(HEX_PREFIX);
+			while (keyBuffer[j]) {
+				if ('0' <= keyBuffer[j] && keyBuffer[j] <= 'F') j += 1;
+				else break;
+			}
+			int hexSuffixLength = j - (i + wcslen(HEX_PREFIX));
+			wchar_t hexadecimal[MAX_PATH];
+			wcsncpy(hexadecimal, &keyBuffer[i], wcslen(HEX_PREFIX) + hexSuffixLength + 1);
+			int integer = 0;
+			StrToIntExW(hexadecimal, STIF_SUPPORT_HEX, &integer);
+			IntToChar(integer, &shortcut->key);
+			i += wcslen(HEX_PREFIX) + hexSuffixLength;
 		}
 		else {
 			shortcut->key = keyBuffer[i];
