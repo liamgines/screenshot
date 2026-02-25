@@ -1012,12 +1012,25 @@ void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, 
 
 	*shortcut = (ACCEL) { .fVirt = FVIRTKEY, .key = 0, .cmd = cmd };
 
-	for (int i = 0; keyBuffer[i]; i++) {
+	int i = 0;
+	while (keyBuffer[i]) {
 		if (keyBuffer[i] == '+' || IsCharSpaceW(keyBuffer[i])) continue;
-		else if (wcsncmp(&keyBuffer[i], SHIFT_STRING, wcslen(SHIFT_STRING)) == 0) shortcut->fVirt |= FSHIFT;
-		else if (wcsncmp(&keyBuffer[i], CTRL_STRING, wcslen(CTRL_STRING)) == 0) shortcut->fVirt |= FCONTROL;
-		else if (wcsncmp(&keyBuffer[i], ALT_STRING, wcslen(ALT_STRING)) == 0) shortcut->fVirt |= FALT;
-		else shortcut->key = keyBuffer[i];
+		else if (wcsncmp(&keyBuffer[i], SHIFT_STRING, wcslen(SHIFT_STRING)) == 0) {
+			shortcut->fVirt |= FSHIFT;
+			i += wcslen(SHIFT_STRING);
+		}
+		else if (wcsncmp(&keyBuffer[i], CTRL_STRING, wcslen(CTRL_STRING)) == 0) {
+			shortcut->fVirt |= FCONTROL;
+			i += wcslen(CTRL_STRING);
+		}
+		else if (wcsncmp(&keyBuffer[i], ALT_STRING, wcslen(ALT_STRING)) == 0) {
+			shortcut->fVirt |= FALT;
+			i += wcslen(ALT_STRING);
+		}
+		else {
+			shortcut->key = keyBuffer[i];
+			i += 1;
+		}
 	}
 }
 
