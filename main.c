@@ -15,6 +15,7 @@
 #define VK_E 0x45
 #define VK_H 0x48
 #define VK_B 0x42
+#define VK_GRAVE VK_OEM_3
 
 #define ARRAY_LENGTH(array) (sizeof(array) / sizeof(array[0]))
 
@@ -56,7 +57,7 @@ static BOOL outlineSelection = FALSE;
 
 static char KEY_SCREEN_CAPTURE = 0;
 
-#define NUM_SHORTCUTS 12
+#define NUM_SHORTCUTS 13
 HACCEL shortcutTable = NULL;
 #define ID_CLOSE 40002
 #define ID_OUTLINE_SELECTION 40003
@@ -70,7 +71,9 @@ HACCEL shortcutTable = NULL;
 #define ID_UPSCALE 40011
 #define ID_DOWNSCALE 40012
 #define ID_SAVE 40013
+#define ID_OPEN_CONFIG 40014
 
+#define CONFIG_FILE L"screenshot.ini"
 #define SHIFT_STRING L"SHIFT"
 #define CTRL_STRING L"CTRL"
 #define ALT_STRING L"ALT"
@@ -590,6 +593,15 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			CloseHandle(thread);
 			return 0;
 		}
+
+		case ID_OPEN_CONFIG:
+			ShowWindow(window, SW_HIDE);
+			wchar_t exeDirectory[MAX_PATH];
+			GetExeDirectory(exeDirectory);
+
+			ShellExecuteW(window, L"open", CONFIG_FILE, NULL, exeDirectory, SW_SHOW);
+			return 0;
+
 		default:
 			return DefWindowProc(window, message, wParameter, lParameter);
 	}
@@ -996,7 +1008,7 @@ BOOL GetExeDirectory(wchar_t *d) {
 BOOL GetSettingsPath(wchar_t *d) {
 	wchar_t exeDirectory[MAX_PATH];
 	GetExeDirectory(exeDirectory);
-	return (PathCombine(d, exeDirectory, L"screenshot.ini") != NULL);
+	return (PathCombine(d, exeDirectory, CONFIG_FILE) != NULL);
 }
 
 void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, wchar_t *configVar) {
@@ -1079,6 +1091,7 @@ BOOL LoadConfig() {
 	SetShortcut(&shortcuts[9], NULL, '2', ID_UPSCALE, L"UPSCALE");
 	SetShortcut(&shortcuts[10], NULL, '1', ID_DOWNSCALE, L"DOWNSCALE");
 	SetShortcut(&shortcuts[11], FCONTROL, 'S', ID_SAVE, L"SAVE");
+	SetShortcut(&shortcuts[12], NULL, VK_GRAVE, ID_OPEN_CONFIG, L"OPEN_CONFIG");
 
 	assert(NUM_SHORTCUTS == ARRAY_LENGTH(shortcuts));
 
