@@ -68,6 +68,11 @@ static BOOL outlineSelection = FALSE;
 
 static char KEY_SCREEN_CAPTURE = 0;
 
+#define ID_SELECTION_OUTLINE 40002
+ACCEL shortcuts[] = {
+	{.fVirt = FVIRTKEY, .key = 'F', .cmd = ID_SELECTION_OUTLINE}
+};
+
 RECT GetNormalizedRectangle(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
 	if (rectangle.bottom - rectangle.top < 0) SWAP(LONG, rectangle.bottom, rectangle.top);
@@ -492,10 +497,6 @@ int HandleKeyDown(HWND window, UINT message, WPARAM wParameter, LPARAM lParamete
 			outlineSelection = TRUE;
 			return 0;
 
-		case VK_F:
-			outlineSelection = !outlineSelection;
-			return 0;
-
 		case VK_Z:
 			if (!(GetAsyncKeyState(VK_CONTROL) & 0x8000)) return 0;
 
@@ -784,6 +785,16 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			}
 			return 0;
 
+		case WM_COMMAND:
+			switch (LOWORD(wParameter)) {
+				case ID_SELECTION_OUTLINE:
+					outlineSelection = !outlineSelection;
+					RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+					BOOL repaint = InvalidateRect(window, &update, TRUE);
+					return 0;
+			}
+			return 0;
+
 		case WM_KEYDOWN:
 			if (HandleKeyDown(window, message, wParameter, lParameter, &currentSelection) == 0) {
 				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
@@ -1058,6 +1069,7 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
 
+	HACCEL shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LENGTH(shortcuts));
 	LoadConfig();
 	if (!UpdateConfig(window)) {
 		// TODO: Clean up?
@@ -1075,8 +1087,10 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 			// TODO: Handle error and possibly exit
 			break;
 		}
-		TranslateMessage(&message);
-		DispatchMessage(&message);
+		if (!TranslateAccelerator(window, shortcutTable, &message)) {
+			TranslateMessage(&message);
+			DispatchMessage(&message);
+		}
 	}
 
 	// Clean up
@@ -1084,6 +1098,8 @@ int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR com
 	SelectObject(memory, previousMemoryBitmap);
 	DeleteDC(memory);
 	DeleteObject(memoryBitmap);
+
+	DestroyAcceleratorTable(shortcutTable);
 
 	DeleteCriticalSection(&criticalSection);
 	ReleaseMutex(singleInstanceMutex);
