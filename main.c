@@ -596,9 +596,17 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_OPEN_CONFIG:
 			ShowWindow(window, SW_HIDE);
+			wchar_t settingsPath[MAX_PATH];
+			GetSettingsPath(settingsPath);
+
+			HANDLE config = CreateFileW(settingsPath, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (config == INVALID_HANDLE_VALUE) {
+				return MessageBoxW(window, L"Config file could not be opened.", NULL, MB_OK | MB_ICONERROR);
+			}
+			CloseHandle(config);
+
 			wchar_t exeDirectory[MAX_PATH];
 			GetExeDirectory(exeDirectory);
-
 			ShellExecuteW(window, L"open", CONFIG_FILE, NULL, exeDirectory, SW_SHOW);
 			return 0;
 
