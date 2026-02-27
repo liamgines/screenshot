@@ -1115,6 +1115,7 @@ BOOL UpdateConfig(window) {
 	GetExeDirectory(exeDirectory);
 	GetSettingsPath(settingsPath);
 	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"FILE_PATH", exeDirectory, fileDirectory, MAX_PATH, settingsPath);
+	if (!charactersCopied) wcscpy(fileDirectory, exeDirectory);
 
 	if (!DirectoryExists(fileDirectory)) {
 		MessageBoxW(NULL, L"Save location could not be found. Check the FILE_PATH variable in your config.", NULL, MB_OK | MB_ICONERROR);
