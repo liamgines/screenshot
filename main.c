@@ -54,7 +54,6 @@ static wchar_t fileDirectory[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
 static BOOL outlineSelection = FALSE;
 static wchar_t filePrefix[MAX_PATH];
-
 static char KEY_SCREEN_CAPTURE = 0;
 
 #define NUM_SHORTCUTS 13
@@ -340,6 +339,9 @@ Selections *SelectionsCreate(RECT data) {
 	return SelectionsAdd(NULL, data);
 }
 
+static Selections *selections = NULL;
+static Selections *currentSelection = NULL;
+
 int GCD(int a, int b) {
 	if (b == 0) return a;
 
@@ -386,7 +388,7 @@ LONG *RectangleRight(RECT *a) {
 	return &a->left;
 }
 
-int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter, Selections **currentSelection) {
+int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	static SIZE prevAspectRatio = { 0 };
 	if (!AspectRatioValid(prevAspectRatio)) {
 		prevAspectRatio.cx = 1;
@@ -504,17 +506,17 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			return 0;
 
 		case ID_UNDO:
-			if (*currentSelection && (*currentSelection)->prev) {
-				*currentSelection = (*currentSelection)->prev;
-				selectionRectangle = (*currentSelection)->data;
+			if (currentSelection && currentSelection->prev) {
+				currentSelection = currentSelection->prev;
+				selectionRectangle = currentSelection->data;
 			}
 
 			return 0;
 
 		case ID_REDO:
-			if (*currentSelection && (*currentSelection)->next) {
-				*currentSelection = (*currentSelection)->next;
-				selectionRectangle = (*currentSelection)->data;
+			if (currentSelection && currentSelection->next) {
+				currentSelection = currentSelection->next;
+				selectionRectangle = currentSelection->data;
 			}
 
 			return 0;
@@ -750,9 +752,6 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	static LONG *selectedXCorner = NULL;
 	static LONG *selectedYCorner = NULL;
 
-	static Selections *selections = NULL;
-	static Selections *currentSelection = NULL;
-
 	RECT displayRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 	Anchors anchors = GetAnchors(displayRectangle);
 	AnchorBoxes boxes = GetAnchorBoxes(anchors);
@@ -802,7 +801,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			return 0;
 
 		case WM_COMMAND:
-			if (HandleKeyCommand(window, message, wParameter, lParameter, &currentSelection) == 0) {
+			if (HandleKeyCommand(window, message, wParameter, lParameter) == 0) {
 				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 				return 0;
