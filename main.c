@@ -6,7 +6,6 @@
 #include <shlwapi.h>	// https://stackoverflow.com/a/49674208/32242805
 #include <stdio.h>
 #include <stdint.h>
-#include <intsafe.h>
 #define STBIW_WINDOWS_UTF8
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -1063,7 +1062,7 @@ void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, 
 			wcsncpy(hexadecimal, &keyBuffer[i], wcslen(HEX_PREFIX) + hexSuffixLength + 1);
 			int integer = 0;
 			StrToIntExW(hexadecimal, STIF_SUPPORT_HEX, &integer);
-			IntToChar(integer, &shortcut->key);
+			shortcut->key = (WORD) integer;
 			i += wcslen(HEX_PREFIX) + hexSuffixLength;
 		}
 		else {
