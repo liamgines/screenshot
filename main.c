@@ -1114,14 +1114,14 @@ BOOL UpdateConfig(window) {
 	wchar_t settingsPath[MAX_PATH];
 	GetExeDirectory(exeDirectory);
 	GetSettingsPath(settingsPath);
-	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", L"FILE_PATH", exeDirectory, fileDirectory, MAX_PATH, settingsPath);
+	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"FILE_PATH", exeDirectory, fileDirectory, MAX_PATH, settingsPath);
 
 	if (!DirectoryExists(fileDirectory)) {
 		MessageBoxW(NULL, L"Save location could not be found. Check the FILE_PATH variable in your config.", NULL, MB_OK | MB_ICONERROR);
 		return FALSE;
 	}
 
-	GetPrivateProfileStringW(L"keys", L"FILE_PREFIX", L"Screenshot_", filePrefix, MAX_PATH, settingsPath);
+	GetPrivateProfileStringW(L"output", L"FILE_PREFIX", L"Screenshot_", filePrefix, MAX_PATH, settingsPath);
 
 	UnregisterHotKey(window, 0);
 	if (!RegisterHotKey(window, 0, NULL, KEY_SCREEN_CAPTURE)) {
