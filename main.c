@@ -54,6 +54,7 @@ static HBITMAP previousMemoryBitmap;
 static wchar_t fileDirectory[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
 static BOOL outlineSelection = FALSE;
+static wchar_t filePrefix[MAX_PATH];
 
 static char KEY_SCREEN_CAPTURE = 0;
 
@@ -192,7 +193,7 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	wchar_t fileName[MAX_PATH + 1 + 1] = L"";
 	int n = 1;
 	do {
-		swprintf(fileName, MAX_PATH + 1 + 1, L"Screenshot_%d.png", n++);
+		swprintf(fileName, MAX_PATH + 1 + 1, L"%s%d.png", filePrefix, n++);
 
 		PathCombine(filePath, args.fileDirectory, fileName);
 		if (wcslen(filePath) > MAX_PATH) {
@@ -1119,6 +1120,8 @@ BOOL UpdateConfig(window) {
 		MessageBoxW(NULL, L"Save location could not be found. Check the FILE_PATH variable in your config.", NULL, MB_OK | MB_ICONERROR);
 		return FALSE;
 	}
+
+	GetPrivateProfileStringW(L"keys", L"FILE_PREFIX", L"Screenshot_", filePrefix, MAX_PATH, settingsPath);
 
 	UnregisterHotKey(window, 0);
 	if (!RegisterHotKey(window, 0, NULL, KEY_SCREEN_CAPTURE)) {
