@@ -17,7 +17,7 @@ IF EXIST screenshot.exe (
 	) ELSE (
 		mkdir "C:\Program Files\Screenshot"
 		copy /B /Y "screenshot.exe" "C:\Program Files\Screenshot\screenshot.exe" /B
-		schtasks /create /sc ONLOGON /tn "Screenshot" /tr "C:\Program Files\Screenshot\screenshot.exe" /rl HIGHEST /f
+		schtasks /create /sc ONLOGON /tn "Screenshot" /tr "'C:\Program Files\Screenshot\screenshot.exe'" /rl HIGHEST /f
 		echo:
 		echo Program is installed and added to startup.
 		echo:
