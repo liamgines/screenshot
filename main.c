@@ -335,11 +335,11 @@ Selections *SelectionsAdd(Selections *prev, RECT data) {
 	return selection;
 }
 
-Selections *SelectionsCreate(RECT data) {
-	return SelectionsAdd(NULL, data);
+Selections *SelectionsFirst(Selections *current) {
+	if (!current || !current->prev) return current;
+	return SelectionsFirst(current->prev);
 }
 
-static Selections *selections = NULL;
 static Selections *currentSelection = NULL;
 
 int GCD(int a, int b) {
@@ -928,12 +928,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 
 			// Track selection history in list
-			if (!selections) {
-				selections = SelectionsCreate(selectionRectangle);
-				currentSelection = selections;
-			}
-			else
-				currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
+			currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
+			// assert(selections == SelectionsFirst(currentSelection));
 
 			// If selection is not visible when left click is released, show default cursor
 			if (!HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
@@ -996,7 +992,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_DESTROY:
 			// Free selection history
-			SelectionsFree(selections);
+			SelectionsFree(SelectionsFirst(currentSelection));
 			PostQuitMessage(0);
 			return 0;
 
