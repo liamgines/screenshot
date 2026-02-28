@@ -532,6 +532,9 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 		case ID_UNDO:
 			if (currentSelection && currentSelection->prev) {
 				currentSelection = SelectionsUndo(currentSelection->prev);
+				// Prevent current selection from being empty if possible when the first element is reached and empty
+				if (!HasArea(currentSelection->data)) currentSelection = SelectionsRedo(currentSelection->next);
+
 				selectionRectangle = currentSelection->data;
 			}
 
@@ -540,6 +543,9 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 		case ID_REDO:
 			if (currentSelection && currentSelection->next) {
 				currentSelection = SelectionsRedo(currentSelection->next);
+
+				if (!HasArea(currentSelection->data)) currentSelection = SelectionsUndo(currentSelection->prev);
+
 				selectionRectangle = currentSelection->data;
 			}
 
