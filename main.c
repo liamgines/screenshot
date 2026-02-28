@@ -566,6 +566,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			}
 			// Ensure this key can only decrease the size of the selection
 			if (RectangleOutOfBounds(selectionRectangle) || GetArea(selectionRectangle) > GetArea(selectionRectangleCopy) || !GetArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
+			else currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
 
 			return 0;
 		}
@@ -582,6 +583,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 				prevAspectRatio = aspectRatio;
 			}
 			if (RectangleOutOfBounds(selectionRectangle) || !GetArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
+			else currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
 
 			return 0;
 		}
