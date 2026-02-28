@@ -340,6 +340,11 @@ Selections *SelectionsUndo(Selections *prev) {
 	return SelectionsUndo(prev->prev);
 }
 
+Selections *SelectionsRedo(Selections *next) {
+	if (!next || !next->next || HasArea(next->data)) return next;
+	return SelectionsRedo(next->next);
+}
+
 Selections *SelectionsFirst(Selections *current) {
 	if (!current || !current->prev) return current;
 	return SelectionsFirst(current->prev);
@@ -520,7 +525,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_REDO:
 			if (currentSelection && currentSelection->next) {
-				currentSelection = currentSelection->next;
+				currentSelection = SelectionsRedo(currentSelection->next);
 				selectionRectangle = currentSelection->data;
 			}
 
