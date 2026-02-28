@@ -335,6 +335,20 @@ Selections *SelectionsAdd(Selections *prev, RECT data) {
 	return selection;
 }
 
+Selections *SelectionsInsertAfter(Selections *prev, RECT data) {
+	Selections *selection = malloc(sizeof(Selections));
+	selection->data = data;
+	selection->prev = prev;
+	selection->next = NULL;
+
+	if (prev) {
+		selection->next = prev->next;
+		prev->next = selection;
+	}
+
+	return selection;
+}
+
 Selections *SelectionsUndo(Selections *prev) {
 	if (!prev || !prev->prev || HasArea(prev->data)) return prev;
 	return SelectionsUndo(prev->prev);
@@ -802,7 +816,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_HOTKEY:
 			if (!IsWindowVisible(window)) {
 				selectionRectangle = (RECT){ 0 };
-				currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
+				currentSelection = SelectionsInsertAfter(currentSelection, selectionRectangle);
 				// Transfer color data from screen to memory
 				BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
 				if (GetForegroundWindow() != window) SetForegroundWindow(window);
