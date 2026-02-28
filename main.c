@@ -519,6 +519,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			if (HasArea(selectionRectangle)) {
 				selectionRectangle = (RECT){ 0 };
 				outlineSelection = FALSE;
+				currentSelection = SelectionsAdd(currentSelection, (RECT) { 0 });
 			}
 			else ShowWindow(window, SW_HIDE);
 
@@ -527,6 +528,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 		case ID_SELECT_ALL:
 			selectionRectangle = screenRectangle;
 			outlineSelection = TRUE;
+			currentSelection = SelectionsAdd(currentSelection, (RECT) { 0 });
 			return 0;
 
 		case ID_UNDO:
