@@ -528,7 +528,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 		case ID_SELECT_ALL:
 			selectionRectangle = screenRectangle;
 			outlineSelection = TRUE;
-			currentSelection = SelectionsAdd(currentSelection, (RECT) { 0 });
+			currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
 			return 0;
 
 		case ID_UNDO:
