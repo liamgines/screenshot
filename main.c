@@ -900,14 +900,6 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle = RectangleToSquare(selectionRectangle);
 			}
 
-			// Track selection history in list
-			if (!selections) {
-				selections = SelectionsCreate(selectionRectangle);
-				currentSelection = selections;
-			}
-			else
-				currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
-
 			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 			BOOL repaint = InvalidateRect(window, &update, TRUE);
 			return 0;
@@ -935,7 +927,13 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			// Normalize rectangle on release to ensure that the corner coordinates are consistent for subsequent rectangle transformations
 			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
 
-			currentSelection->data = selectionRectangle;
+			// Track selection history in list
+			if (!selections) {
+				selections = SelectionsCreate(selectionRectangle);
+				currentSelection = selections;
+			}
+			else
+				currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
 
 			// If selection is not visible when left click is released, show default cursor
 			if (!HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
