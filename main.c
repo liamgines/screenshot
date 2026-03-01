@@ -461,6 +461,11 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			execInfo.lpFile = L"mspaint";
 			execInfo.nShow = SW_MAXIMIZE;
 			ShellExecuteExW(&execInfo);
+			if (!execInfo.hProcess) {
+				MessageBoxW(window, L"Paint could not be opened.", NULL, MB_OK | MB_ICONERROR);
+				return 0;
+			}
+
 			Sleep(250);
 			CloseHandle(execInfo.hProcess);
 
