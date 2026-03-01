@@ -635,6 +635,16 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			parameter->selectionHeight = SELECTION_HEIGHT;
 
 			HANDLE thread = CreateThread(NULL, 0, SaveScreenshot, parameter, 0, NULL);
+
+			if (!thread) {
+				// Clean up
+				free(screenPixels);
+				free(parameter);
+				free(fileDirectoryCopy);
+				MessageBoxW(window, L"Screenshot could not be saved.", NULL, MB_OK | MB_ICONERROR);
+				return 0;
+			}
+
 			CloseHandle(thread);
 			return 0;
 		}
