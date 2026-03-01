@@ -30,7 +30,7 @@ First, run:
 
 Then compile with:
 
-	cl /ZI /D _UNICODE /D UNICODE main.c User32.lib Gdi32.lib Shlwapi.lib /Fe:screenshot.exe
+	cl /ZI /D _UNICODE /D UNICODE main.c User32.lib Gdi32.lib Shlwapi.lib Shell32.lib Pathcch.lib /Fe:screenshot.exe
 
 If you want to add the app to startup, run `install.bat`.
 
