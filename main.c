@@ -798,16 +798,18 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	GetCursorPos(&point);
 
 	switch (message) {
-		case WM_SHOWWINDOW:
+		case WM_SHOWWINDOW: {
 			BOOL windowShown = wParameter;
 			if (!windowShown) outlineSelection = FALSE;
 			return DefWindowProc(window, message, wParameter, lParameter);
+		}
 
 
-		case WM_ACTIVATE:
+		case WM_ACTIVATE: {
 			BOOL activationStatus = HIWORD(wParameter);
 			if (activationStatus == WA_INACTIVE) ShowWindow(window, SW_HIDE);
 			return DefWindowProc(window, message, wParameter, lParameter);
+		}
 
 		case WM_DISPLAYCHANGE:
 			if (IsWindowVisible(window)) ShowWindow(window, SW_HIDE);
@@ -848,13 +850,14 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			}
 			return 1;
 
-		case WM_SETCURSOR:
+		case WM_SETCURSOR: {
 			// Update cursor based on position while left click is not held
 			SHORT leftClick = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
 			if (!leftClick) SetCursor(GetCursor(point, displayRectangle, boxes));
 			// If left click is held and selection is not visible, show a default resize icon
 			else if (leftClick && !HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
 			return TRUE;
+		}
 
 		case WM_LBUTTONDOWN: {
 			BOOL cursorInSelection = PtInRect(&displayRectangle, point);
@@ -980,7 +983,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		}
 
 
-		case WM_PAINT:
+		case WM_PAINT: {
 			PAINTSTRUCT paint;
 			HDC client = BeginPaint(window, &paint);
 
@@ -1029,6 +1032,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			DeleteObject(sceneBitmap);
 			EndPaint(window, &paint);
 			return 0;
+		}
 
 		case WM_DESTROY:
 			// Free selection history
