@@ -1184,7 +1184,7 @@ BOOL UpdateConfig(window) {
 	return TRUE;
 }
 
-int WINAPI wWinMain(HINSTANCE appInstance, HINSTANCE previousInstance, PWSTR commandLine, int visibility) {
+int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInstance, _In_ PWSTR commandLine, _In_ int visibility) {
 	// https://stackoverflow.com/a/33531179/32242805
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
 	HANDLE singleInstanceMutex = CreateMutex(NULL, TRUE, L"Single Instance Mutex for Screenshot Application");
