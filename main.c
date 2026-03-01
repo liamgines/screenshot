@@ -41,6 +41,9 @@ do {					 \
 #define SCREEN_HANDLE NULL
 #define SCREEN_AREA (SCREEN_WIDTH * SCREEN_HEIGHT)
 #define BOX_SIZE 6 * 4
+// https://superuser.com/a/1915000
+#define MAX_SCREEN_WIDTH_LEN 6
+#define MAX_SCREEN_HEIGHT_LEN 6
 
 static int SCREEN_WIDTH = 0;
 static int SCREEN_HEIGHT = 0;
@@ -476,10 +479,10 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			inputs[i++] = KeyInput(VK_E, TRUE);
 			inputs[i++] = KeyInput(VK_CONTROL, TRUE);
 
-			wchar_t selectionWidth[5 + 1 + 1] = { 0 };
-			wchar_t selectionHeight[5 + 1 + 1] = { 0 };
-			swprintf(selectionWidth, sizeof(selectionWidth), L"%d", GetWidth(selectionRectangle));
-			swprintf(selectionHeight, sizeof(selectionHeight), L"%d", GetHeight(selectionRectangle));
+			wchar_t selectionWidth[MAX_SCREEN_WIDTH_LEN] = { 0 };
+			wchar_t selectionHeight[MAX_SCREEN_HEIGHT_LEN] = { 0 };
+			swprintf(selectionWidth, ARRAY_LENGTH(selectionWidth), L"%d", GetWidth(selectionRectangle));
+			swprintf(selectionHeight, ARRAY_LENGTH(selectionHeight), L"%d", GetHeight(selectionRectangle));
 
 			int j = 0;
 			while (selectionWidth[j++]) {
