@@ -3,7 +3,7 @@ screenshot
 
 screenshot is a Windows application for taking Desktop screen captures.
 
-Controls
+Default Controls
 --------
 `PrtSc` displays the selection screen.<br>
 `Esc` closes the selection screen.<br>
