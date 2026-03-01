@@ -322,6 +322,9 @@ void SelectionsFree(Selections *xs) {
 }
 
 Selections *SelectionsAdd(Selections *prev, RECT data) {
+	// Prevent duplicate from being added
+	if (prev && RectangleEqual(prev->data, data)) return prev;
+
 	Selections *selection = malloc(sizeof(Selections));
 	selection->data = data;
 	selection->prev = prev;
@@ -336,6 +339,8 @@ Selections *SelectionsAdd(Selections *prev, RECT data) {
 }
 
 Selections *SelectionsInsertAfter(Selections *prev, RECT data) {
+	if (prev && RectangleEqual(prev->data, data)) return prev;
+
 	Selections *selection = malloc(sizeof(Selections));
 	selection->data = data;
 	selection->prev = prev;
@@ -519,7 +524,6 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			if (HasArea(selectionRectangle)) {
 				selectionRectangle = (RECT){ 0 };
 				outlineSelection = FALSE;
-				currentSelection = SelectionsAdd(currentSelection, (RECT) { 0 });
 			}
 			else ShowWindow(window, SW_HIDE);
 
@@ -528,7 +532,6 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 		case ID_SELECT_ALL:
 			selectionRectangle = screenRectangle;
 			outlineSelection = TRUE;
-			currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
 			return 0;
 
 		case ID_UNDO:
@@ -566,7 +569,6 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			}
 			// Ensure this key can only decrease the size of the selection
 			if (RectangleOutOfBounds(selectionRectangle) || GetArea(selectionRectangle) > GetArea(selectionRectangleCopy) || !GetArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
-			else currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
 
 			return 0;
 		}
@@ -583,7 +585,6 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 				prevAspectRatio = aspectRatio;
 			}
 			if (RectangleOutOfBounds(selectionRectangle) || !GetArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
-			else currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
 
 			return 0;
 		}
@@ -839,6 +840,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			if (HandleKeyCommand(window, message, wParameter, lParameter) == 0) {
 				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
+				currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
 				return 0;
 			}
 			return 1;
