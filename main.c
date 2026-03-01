@@ -1119,7 +1119,7 @@ BOOL LoadConfig() {
 	ACCEL shortcuts[NUM_SHORTCUTS];
 	SetShortcut(&shortcuts[0], NULL, VK_ESCAPE, ID_CLOSE, L"CLOSE");
 	SetShortcut(&shortcuts[1], NULL, 'F', ID_OUTLINE_SELECTION, L"OUTLINE_SELECTION");
-	SetShortcut(&shortcuts[2], FCONTROL, 'R', ID_RELOAD_CONFIG, L"RELOAD_CONFIG");
+	SetShortcut(&shortcuts[2], NULL, 'R', ID_RELOAD_CONFIG, L"RELOAD_CONFIG");
 	SetShortcut(&shortcuts[3], FCONTROL, 'E', ID_OPEN_PAINT, L"OPEN_PAINT");
 	SetShortcut(&shortcuts[4], FCONTROL, 'C', ID_COPY, L"COPY");
 	SetShortcut(&shortcuts[5], FCONTROL, 'W', ID_DESELECT, L"DESELECT");
