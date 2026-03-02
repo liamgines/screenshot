@@ -1110,6 +1110,11 @@ void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, 
 				else break;
 			}
 			int hexSuffixLength = j - (i + wcslen(HEX_PREFIX));
+			if (hexSuffixLength != 2) {
+				*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = cmd };
+				MessageBoxW(NULL, L"Could not assign a key due to an invalid hex key code in the config. Code must be in range 0x01 to 0xFE. Default key was assigned instead.", L"Warning", MB_OK | MB_ICONWARNING);
+				return;
+			}
 			wchar_t hexadecimal[MAX_PATH];
 			wcsncpy(hexadecimal, &keyBuffer[i], wcslen(HEX_PREFIX) + hexSuffixLength + 1);
 			int integer = 0;
