@@ -468,8 +468,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			return 0;
 
 		case ID_RELOAD_CONFIG:
-			LoadConfig();
-			if (!UpdateConfig(window)) {
+			if (!LoadConfig(window)) {
 				DestroyWindow(window);
 				return 1;
 			}
@@ -1144,7 +1143,7 @@ void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, 
 	}
 }
 
-BOOL LoadConfig() {
+BOOL LoadConfig(window) {
 	ACCEL screenCaptureShortcut = { 0 };
 	SetShortcut(&screenCaptureShortcut, NULL, VK_SNAPSHOT, NULL, L"SCREEN_CAPTURE");
 	KEY_SCREEN_CAPTURE = screenCaptureShortcut.key;
@@ -1174,10 +1173,6 @@ BOOL LoadConfig() {
 
 	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LENGTH(shortcuts));
 
-	return TRUE;
-}
-
-BOOL UpdateConfig(window) {
 	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"FILE_PATH", exeDirectory, fileDirectory, MAX_PATH, settingsPath);
 	if (!charactersCopied) wcscpy(fileDirectory, exeDirectory);
 
@@ -1238,8 +1233,7 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
 
-	LoadConfig();
-	if (!UpdateConfig(window)) {
+	if (!LoadConfig(window)) {
 		// TODO: Clean up?
 		return 1;
 	}
