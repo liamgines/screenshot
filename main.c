@@ -55,6 +55,7 @@ static HBITMAP memoryBitmap;
 static HBITMAP previousMemoryBitmap;
 static wchar_t fileDirectory[MAX_PATH];
 static wchar_t exeDirectory[MAX_PATH];
+static wchar_t settingsPath[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
 static BOOL outlineSelection = FALSE;
 static wchar_t filePrefix[MAX_PATH];
@@ -673,8 +674,6 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_OPEN_CONFIG:
 			ShowWindow(window, SW_HIDE);
-			wchar_t settingsPath[MAX_PATH];
-			GetSettingsPath(settingsPath);
 
 			HANDLE config = CreateFileW(settingsPath, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 			if (config == INVALID_HANDLE_VALUE) {
@@ -1091,9 +1090,6 @@ BOOL GetSettingsPath(wchar_t *d) {
 }
 
 void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, wchar_t *configVar) {
-	wchar_t settingsPath[MAX_PATH];
-	GetSettingsPath(settingsPath);
-
 	wchar_t keyBuffer[MAX_PATH];
 	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVar, NULL, keyBuffer, MAX_PATH, settingsPath);
 	CharUpperW(keyBuffer);
@@ -1149,9 +1145,6 @@ void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, 
 }
 
 BOOL LoadConfig() {
-	wchar_t settingsPath[MAX_PATH];
-	GetSettingsPath(settingsPath);
-
 	ACCEL screenCaptureShortcut = { 0 };
 	SetShortcut(&screenCaptureShortcut, NULL, VK_SNAPSHOT, NULL, L"SCREEN_CAPTURE");
 	KEY_SCREEN_CAPTURE = screenCaptureShortcut.key;
@@ -1185,8 +1178,6 @@ BOOL LoadConfig() {
 }
 
 BOOL UpdateConfig(window) {
-	wchar_t settingsPath[MAX_PATH];
-	GetSettingsPath(settingsPath);
 	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"FILE_PATH", exeDirectory, fileDirectory, MAX_PATH, settingsPath);
 	if (!charactersCopied) wcscpy(fileDirectory, exeDirectory);
 
@@ -1212,8 +1203,8 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 	HANDLE singleInstanceMutex = CreateMutex(NULL, TRUE, L"Single Instance Mutex for Screenshot Application");
 	if (GetLastError()) return 1;
 
-	if (!GetExeDirectory(exeDirectory)) {
-		MessageBoxW(NULL, L"Could not find directory where executable is running.", NULL, MB_OK | MB_ICONERROR);
+	if (!GetExeDirectory(exeDirectory) || !GetSettingsPath(settingsPath)) {
+		MessageBoxW(NULL, L"Could not find config path or directory where executable is running.", NULL, MB_OK | MB_ICONERROR);
 		return 1;
 	}
 
