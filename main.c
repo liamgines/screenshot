@@ -1201,7 +1201,10 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 	// https://stackoverflow.com/a/33531179/32242805
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
 	HANDLE singleInstanceMutex = CreateMutex(NULL, TRUE, L"Single Instance Mutex for Screenshot Application");
-	if (GetLastError()) return 1;
+	if (GetLastError()) {
+		MessageBoxW(NULL, L"Screenshot application is already running.", L"Warning", MB_OK | MB_ICONWARNING);
+		return 1;
+	}
 
 	if (!GetExeDirectory(exeDirectory) || !GetSettingsPath(settingsPath)) {
 		MessageBoxW(NULL, L"Could not find config path or directory where executable is running.", NULL, MB_OK | MB_ICONERROR);
