@@ -54,6 +54,7 @@ static HDC memory;
 static HBITMAP memoryBitmap;
 static HBITMAP previousMemoryBitmap;
 static wchar_t fileDirectory[MAX_PATH];
+static wchar_t exeDirectory[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
 static BOOL outlineSelection = FALSE;
 static wchar_t filePrefix[MAX_PATH];
@@ -681,8 +682,6 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			}
 			CloseHandle(config);
 
-			wchar_t exeDirectory[MAX_PATH];
-			GetExeDirectory(exeDirectory);
 			ShellExecuteW(window, L"open", CONFIG_FILE, NULL, exeDirectory, SW_SHOW);
 			return 0;
 
@@ -1082,13 +1081,12 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 }
 
 BOOL GetExeDirectory(wchar_t *d) {
-	if (GetModuleFileName(NULL, d, MAX_PATH) <= 0) return FALSE;
+	GetModuleFileName(NULL, d, MAX_PATH);
+	if (GetLastError()) return FALSE;
 	return (PathCchRemoveFileSpec(d, MAX_PATH) == S_OK);
 }
 
 BOOL GetSettingsPath(wchar_t *d) {
-	wchar_t exeDirectory[MAX_PATH];
-	GetExeDirectory(exeDirectory);
 	return (PathCombine(d, exeDirectory, CONFIG_FILE) != NULL);
 }
 
@@ -1187,9 +1185,7 @@ BOOL LoadConfig() {
 }
 
 BOOL UpdateConfig(window) {
-	wchar_t exeDirectory[MAX_PATH];
 	wchar_t settingsPath[MAX_PATH];
-	GetExeDirectory(exeDirectory);
 	GetSettingsPath(settingsPath);
 	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"FILE_PATH", exeDirectory, fileDirectory, MAX_PATH, settingsPath);
 	if (!charactersCopied) wcscpy(fileDirectory, exeDirectory);
@@ -1215,6 +1211,11 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
 	HANDLE singleInstanceMutex = CreateMutex(NULL, TRUE, L"Single Instance Mutex for Screenshot Application");
 	if (GetLastError()) return 1;
+
+	if (!GetExeDirectory(exeDirectory)) {
+		MessageBoxW(NULL, L"Could not find directory where executable is running.", NULL, MB_OK | MB_ICONERROR);
+		return 1;
+	}
 
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
