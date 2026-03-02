@@ -276,13 +276,18 @@ LRESULT CopySelectionToClipboard(HWND window) {
 
 	int headerAndPixelsSize = sizeof(header) + (sizeof(uint32_t) * SELECTION_AREA);
 	char *headerAndPixels = malloc(headerAndPixelsSize);
-	BITMAPINFOHEADER *headerPart = (BITMAPINFOHEADER *) headerAndPixels;
-	uint32_t *selectionPixels = (uint32_t *) (headerAndPixels + sizeof(header));
+	if (!headerAndPixels) {
+		MessageBoxW(window, L"Could not copy selection to clipboard.", NULL, MB_OK | MB_ICONERROR);
+	}
+	else {
+		BITMAPINFOHEADER *headerPart = (BITMAPINFOHEADER *)headerAndPixels;
+		uint32_t *selectionPixels = (uint32_t *)(headerAndPixels + sizeof(header));
 
-	*headerPart = header;
-	int scanLinesCopied = GetDIBits(copy, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
+		*headerPart = header;
+		int scanLinesCopied = GetDIBits(copy, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
 
-	CopyToClipboard(window, headerAndPixels, headerAndPixelsSize, CF_DIB);
+		CopyToClipboard(window, headerAndPixels, headerAndPixelsSize, CF_DIB);
+	}
 
 	// Clean up
 	free(headerAndPixels);
