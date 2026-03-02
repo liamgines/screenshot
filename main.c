@@ -59,7 +59,6 @@ static wchar_t settingsPath[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
 static BOOL outlineSelection = FALSE;
 static wchar_t filePrefix[MAX_PATH];
-static char KEY_SCREEN_CAPTURE = 0;
 
 #define NUM_SHORTCUTS 13
 HACCEL shortcutTable = NULL;
@@ -76,6 +75,7 @@ HACCEL shortcutTable = NULL;
 #define ID_DOWNSCALE 40012
 #define ID_SAVE 40013
 #define ID_OPEN_CONFIG 40014
+#define HOTKEY_SCREEN_CAPTURE 40015
 
 #define CONFIG_FILE L"screenshot.ini"
 #define SHIFT_STRING L"SHIFT"
@@ -1143,10 +1143,17 @@ void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, 
 	}
 }
 
+UINT ShortcutModsToHotKeyMods(WORD shortcutMods) {
+	UINT hotkeyMods = 0;
+	hotkeyMods |= (shortcutMods & FSHIFT) ? MOD_SHIFT : 0;
+	hotkeyMods |= (shortcutMods & FCONTROL) ? MOD_CONTROL : 0;
+	hotkeyMods |= (shortcutMods & FALT) ? MOD_ALT : 0;
+	return hotkeyMods;
+}
+
 BOOL LoadConfig(window) {
 	ACCEL screenCaptureShortcut = { 0 };
 	SetShortcut(&screenCaptureShortcut, NULL, VK_SNAPSHOT, NULL, L"SCREEN_CAPTURE");
-	KEY_SCREEN_CAPTURE = screenCaptureShortcut.key;
 
 	// If shortcut table already exists, destroy it
 	if (shortcutTable) {
@@ -1183,8 +1190,8 @@ BOOL LoadConfig(window) {
 
 	GetPrivateProfileStringW(L"output", L"FILE_PREFIX", L"Screenshot_", filePrefix, MAX_PATH, settingsPath);
 
-	UnregisterHotKey(window, 0);
-	if (!RegisterHotKey(window, 0, NULL, KEY_SCREEN_CAPTURE)) {
+	UnregisterHotKey(window, HOTKEY_SCREEN_CAPTURE);
+	if (!RegisterHotKey(window, HOTKEY_SCREEN_CAPTURE, ShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
 		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
 		return FALSE;
 	}
