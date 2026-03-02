@@ -329,7 +329,10 @@ Selections *SelectionsAdd(Selections *prev, RECT data) {
 	// Prevent duplicate from being added
 	if (prev && RectangleEqual(prev->data, data)) return prev;
 
+	// TODO: Remove first node and add try adding again if out of memory
 	Selections *selection = malloc(sizeof(Selections));
+	if (!selection) return prev;
+
 	selection->data = data;
 	selection->prev = prev;
 	selection->next = NULL;
@@ -345,7 +348,10 @@ Selections *SelectionsAdd(Selections *prev, RECT data) {
 Selections *SelectionsInsertAfter(Selections *prev, RECT data) {
 	if (prev && RectangleEqual(prev->data, data)) return prev;
 
+	// TODO: Remove first node and try inserting again if out of memory
 	Selections *selection = malloc(sizeof(Selections));
+	if (!selection) return prev;
+
 	selection->data = data;
 	selection->prev = prev;
 	selection->next = NULL;
