@@ -83,14 +83,14 @@ HACCEL shortcutTable = NULL;
 #define ALT_STRING L"ALT"
 #define HEX_PREFIX L"0X"
 
-RECT GetNormalizedRectangle(RECT rectangle) {
+RECT RectangleNormalize(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
 	if (rectangle.bottom - rectangle.top < 0) SWAP(LONG, rectangle.bottom, rectangle.top);
 	return rectangle;
 }
 
 // Expects a normalized rectangle
-RECT GetTruncatedRectangle(RECT r) {
+RECT RectangleTruncate(RECT r) {
 	if (r.left < 0) r.left = 0;
 	if (r.top < 0) r.top = 0;
 	if (r.right > SCREEN_WIDTH) r.right = SCREEN_WIDTH;
@@ -98,8 +98,8 @@ RECT GetTruncatedRectangle(RECT r) {
 	return r;
 }
 
-RECT NormalizeAndTruncate(RECT r) {
-	return GetTruncatedRectangle(GetNormalizedRectangle(r));
+RECT RectangleNormalizeTruncate(RECT r) {
+	return RectangleTruncate(RectangleNormalize(r));
 }
 
 POINT GetPoint(LPARAM lParameter) {
@@ -114,7 +114,7 @@ POINT GetDifference(POINT p1, POINT p2) {
 	return difference;
 }
 
-RECT TranslateRectangle(RECT rectangle, POINT translation) {
+RECT RectangleTranslate(RECT rectangle, POINT translation) {
 	rectangle.left += translation.x;
 	rectangle.top += translation.y;
 	rectangle.right += translation.x;
@@ -122,11 +122,11 @@ RECT TranslateRectangle(RECT rectangle, POINT translation) {
 	return rectangle;
 }
 
-LONG GetWidth(RECT r) {
+LONG RectangleWidth(RECT r) {
 	return r.right - r.left;
 }
 
-LONG GetHeight(RECT r) {
+LONG RectangleHeight(RECT r) {
 	return r.bottom - r.top;
 }
 
@@ -250,9 +250,9 @@ BOOL CopyToClipboard(HWND window, char *data, int size, UINT format) {
 }
 
 LRESULT CopySelectionToClipboard(HWND window) {
-	selectionRectangle = NormalizeAndTruncate(selectionRectangle);
-	const int SELECTION_WIDTH = GetWidth(selectionRectangle);
-	const int SELECTION_HEIGHT = GetHeight(selectionRectangle);
+	selectionRectangle = RectangleNormalizeTruncate(selectionRectangle);
+	const int SELECTION_WIDTH = RectangleWidth(selectionRectangle);
+	const int SELECTION_HEIGHT = RectangleHeight(selectionRectangle);
 	const int SELECTION_AREA = SELECTION_WIDTH * SELECTION_HEIGHT;
 
 	if (!SELECTION_AREA) return 1;
@@ -309,7 +309,7 @@ INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
 }
 
 RECT RectangleToSquare(RECT a) {
-	LONG length = MAX(GetWidth(a), GetHeight(a));
+	LONG length = MAX(RectangleWidth(a), RectangleHeight(a));
 	return (RECT) {
 		.left = a.left,
 		.top = a.top,
@@ -372,12 +372,12 @@ Selections *SelectionsInsertAfter(Selections *prev, RECT data) {
 }
 
 Selections *SelectionsUndo(Selections *prev) {
-	if (!prev || !prev->prev || HasArea(prev->data)) return prev;
+	if (!prev || !prev->prev || RectangleHasArea(prev->data)) return prev;
 	return SelectionsUndo(prev->prev);
 }
 
 Selections *SelectionsRedo(Selections *next) {
-	if (!next || !next->next || HasArea(next->data)) return next;
+	if (!next || !next->next || RectangleHasArea(next->data)) return next;
 	return SelectionsRedo(next->next);
 }
 
@@ -395,8 +395,8 @@ int GCD(int a, int b) {
 }
 
 SIZE RectangleAspectRatio(RECT a) {
-	int w = GetWidth(a);
-	int h = GetHeight(a);
+	int w = RectangleWidth(a);
+	int h = RectangleHeight(a);
 	int gcd = GCD(w, h);
 
 	SIZE aspectRatio = { 0 };
@@ -412,8 +412,8 @@ BOOL RectangleEqual(RECT a, RECT b) {
 }
 
 BOOL RectangleOutOfBounds(RECT a) {
-	a = GetNormalizedRectangle(a);
-	return !RectangleEqual(a, GetTruncatedRectangle(a));
+	a = RectangleNormalize(a);
+	return !RectangleEqual(a, RectangleTruncate(a));
 }
 
 BOOL AspectRatioEqual(SIZE a, SIZE b) {
@@ -510,8 +510,8 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 			wchar_t selectionWidth[MAX_SCREEN_WIDTH_LEN] = { 0 };
 			wchar_t selectionHeight[MAX_SCREEN_HEIGHT_LEN] = { 0 };
-			swprintf(selectionWidth, ARRAY_LENGTH(selectionWidth), L"%d", GetWidth(selectionRectangle));
-			swprintf(selectionHeight, ARRAY_LENGTH(selectionHeight), L"%d", GetHeight(selectionRectangle));
+			swprintf(selectionWidth, ARRAY_LENGTH(selectionWidth), L"%d", RectangleWidth(selectionRectangle));
+			swprintf(selectionHeight, ARRAY_LENGTH(selectionHeight), L"%d", RectangleHeight(selectionRectangle));
 
 			int j = 0;
 			while (selectionWidth[j++]) {
@@ -553,7 +553,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			return CopySelectionToClipboard(window);
 
 		case ID_DESELECT:
-			if (HasArea(selectionRectangle)) {
+			if (RectangleHasArea(selectionRectangle)) {
 				selectionRectangle = (RECT){ 0 };
 				outlineSelection = FALSE;
 			}
@@ -570,7 +570,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			if (currentSelection && currentSelection->prev) {
 				currentSelection = SelectionsUndo(currentSelection->prev);
 				// Prevent current selection from being empty if possible when the first element is reached and empty
-				if (!HasArea(currentSelection->data)) currentSelection = SelectionsRedo(currentSelection->next);
+				if (!RectangleHasArea(currentSelection->data)) currentSelection = SelectionsRedo(currentSelection->next);
 
 				selectionRectangle = currentSelection->data;
 			}
@@ -581,7 +581,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			if (currentSelection && currentSelection->next) {
 				currentSelection = SelectionsRedo(currentSelection->next);
 
-				if (!HasArea(currentSelection->data)) currentSelection = SelectionsUndo(currentSelection->prev);
+				if (!RectangleHasArea(currentSelection->data)) currentSelection = SelectionsUndo(currentSelection->prev);
 
 				selectionRectangle = currentSelection->data;
 			}
@@ -600,7 +600,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 				prevAspectRatio = aspectRatio;
 			}
 			// Ensure this key can only decrease the size of the selection
-			if (RectangleOutOfBounds(selectionRectangle) || GetArea(selectionRectangle) > GetArea(selectionRectangleCopy) || !GetArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
+			if (RectangleOutOfBounds(selectionRectangle) || RectangleArea(selectionRectangle) > RectangleArea(selectionRectangleCopy) || !RectangleArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
 
 			return 0;
 		}
@@ -616,15 +616,15 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 				*selectionBottom += aspectRatio.cy;
 				prevAspectRatio = aspectRatio;
 			}
-			if (RectangleOutOfBounds(selectionRectangle) || !GetArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
+			if (RectangleOutOfBounds(selectionRectangle) || !RectangleArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
 
 			return 0;
 		}
 
 		case ID_SAVE: {
-			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
-			const int SELECTION_WIDTH = GetWidth(selectionRectangle);
-			const int SELECTION_HEIGHT = GetHeight(selectionRectangle);
+			selectionRectangle = RectangleTruncate(RectangleNormalize(selectionRectangle));
+			const int SELECTION_WIDTH = RectangleWidth(selectionRectangle);
+			const int SELECTION_HEIGHT = RectangleHeight(selectionRectangle);
 			const int SELECTION_AREA = SELECTION_WIDTH * SELECTION_HEIGHT;
 
 			// Ensure empty screenshot can't be saved
@@ -700,14 +700,14 @@ void PaintAnchor(HDC destination, POINT p, COLORREF color, LONG size) {
 	DeleteObject(boxColor);
 }
 
-LONG GetArea(RECT r) {
+LONG RectangleArea(RECT r) {
 	LONG w = r.right - r.left;
 	LONG h = r.bottom - r.top;
 	return w * h;
 }
 
-BOOL HasArea(RECT r) {
-	if (GetArea(r) != 0) return TRUE;
+BOOL RectangleHasArea(RECT r) {
+	if (RectangleArea(r) != 0) return TRUE;
 	return FALSE;
 }
 
@@ -797,7 +797,7 @@ AnchorBoxes FitBoxes(AnchorBoxes boxes, RECT fit) {
 
 HCURSOR GetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
 	// If selection is not visible, show default cursor
-	if (!HasArea(displayRectangle))													  return LoadCursor(NULL, IDC_ARROW);
+	if (!RectangleHasArea(displayRectangle))													  return LoadCursor(NULL, IDC_ARROW);
 	else if (PtInRect(&boxes.topLeft, point) || PtInRect(&boxes.bottomRight, point))  return LoadCursor(NULL, IDC_SIZENWSE);
 	else if (PtInRect(&boxes.bottomLeft, point) || PtInRect(&boxes.topRight, point))  return LoadCursor(NULL, IDC_SIZENESW);
 	else if (PtInRect(&boxes.midLeft, point) || PtInRect(&boxes.midRight, point))	  return LoadCursor(NULL, IDC_SIZEWE);
@@ -806,9 +806,9 @@ HCURSOR GetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
 	return LoadCursor(NULL, IDC_ARROW);
 }
 
-RECT GetUpdateRectangle(RECT before, RECT after, int padding) {
-	before = NormalizeAndTruncate(before);
-	after = NormalizeAndTruncate(after);
+RECT RectangleUpdateRegion(RECT before, RECT after, int padding) {
+	before = RectangleNormalizeTruncate(before);
+	after = RectangleNormalizeTruncate(after);
 	return (RECT) {
 		.left = MIN(before.left, after.left) - padding,
 		.top = MIN(before.top, after.top) - padding,
@@ -823,7 +823,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	static LONG *selectedXCorner = NULL;
 	static LONG *selectedYCorner = NULL;
 
-	RECT displayRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
+	RECT displayRectangle = RectangleTruncate(RectangleNormalize(selectionRectangle));
 	Anchors anchors = GetAnchors(displayRectangle);
 	AnchorBoxes boxes = GetAnchorBoxes(anchors);
 	boxes = FitBoxes(boxes, displayRectangle);
@@ -876,7 +876,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_COMMAND:
 			if (HandleKeyCommand(window, message, wParameter, lParameter) == 0) {
-				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 				currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
 				return 0;
@@ -888,13 +888,13 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			SHORT leftClick = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
 			if (!leftClick) SetCursor(GetCursor(point, displayRectangle, boxes));
 			// If left click is held and selection is not visible, show a default resize icon
-			else if (leftClick && !HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
+			else if (leftClick && !RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
 			return TRUE;
 		}
 
 		case WM_LBUTTONDOWN: {
 			BOOL cursorInSelection = PtInRect(&displayRectangle, point);
-			int squareLength = MIN(GetWidth(selectionRectangle), GetHeight(selectionRectangle));
+			int squareLength = MIN(RectangleWidth(selectionRectangle), RectangleHeight(selectionRectangle));
 
 			if (PtInRect(&boxes.topLeft, point)) {
 				selectedXCorner = &selectionRectangle.left;
@@ -936,25 +936,25 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				selectedXCorner = &selectionRectangle.left;
 				selectedYCorner = NULL;
 
-				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.left = selectionRectangle.right - GetHeight(selectionRectangle);
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.left = selectionRectangle.right - RectangleHeight(selectionRectangle);
 			}
 			else if (PtInRect(&boxes.midRight, point)) {
 				selectedXCorner = &selectionRectangle.right;
 				selectedYCorner = NULL;
 
-				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.right = selectionRectangle.left + GetHeight(selectionRectangle);
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.right = selectionRectangle.left + RectangleHeight(selectionRectangle);
 			}
 			else if (PtInRect(&boxes.topMid, point)) {
 				selectedXCorner = NULL;
 				selectedYCorner = &selectionRectangle.top;
 
-				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.top = selectionRectangle.bottom - GetWidth(selectionRectangle);
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.top = selectionRectangle.bottom - RectangleWidth(selectionRectangle);
 			}
 			else if (PtInRect(&boxes.bottomMid, point)) {
 				selectedXCorner = NULL;
 				selectedYCorner = &selectionRectangle.bottom;
 
-				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.bottom = selectionRectangle.top + GetWidth(selectionRectangle);
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.bottom = selectionRectangle.top + RectangleWidth(selectionRectangle);
 			}
 
 			// Reset selection
@@ -976,7 +976,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle = RectangleToSquare(selectionRectangle);
 			}
 
-			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+			RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 			BOOL repaint = InvalidateRect(window, &update, TRUE);
 			return 0;
 		}
@@ -986,13 +986,13 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			if ((wParameter & MK_LBUTTON) && !drag) {
 				if (selectedXCorner) *selectedXCorner = point.x;
 				if (selectedYCorner) *selectedYCorner = point.y;
-				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
 			else if ((wParameter & MK_LBUTTON) && drag) {
 				POINT difference = GetDifference(point, previousPosition);
-				selectionRectangle = TranslateRectangle(selectionRectangle, difference);
-				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+				selectionRectangle = RectangleTranslate(selectionRectangle, difference);
+				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
 			previousPosition = point;
@@ -1001,17 +1001,17 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_LBUTTONUP: {
 			// Normalize rectangle on release to ensure that the corner coordinates are consistent for subsequent rectangle transformations
-			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
+			selectionRectangle = RectangleTruncate(RectangleNormalize(selectionRectangle));
 
 			// Track selection history in list
 			currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
 			// assert(selections == SelectionsFirst(currentSelection));
 
 			// If selection is not visible when left click is released, show default cursor
-			if (!HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
+			if (!RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
 			drag = FALSE;
 
-			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
+			RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, BOX_SIZE / 2);
 			BOOL repaint = InvalidateRect(window, &update, TRUE);
 		}
 
@@ -1021,10 +1021,10 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			HDC client = BeginPaint(window, &paint);
 
 			RECT update = paint.rcPaint;
-			RECT sceneCoords = { .left = 0, .top = 0, .right = GetWidth(update), .bottom = GetHeight(update) };
+			RECT sceneCoords = { .left = 0, .top = 0, .right = RectangleWidth(update), .bottom = RectangleHeight(update) };
 
 			HDC scene = CreateCompatibleDC(client);
-			HBITMAP sceneBitmap = CreateCompatibleBitmap(client, GetWidth(update), GetHeight(update));
+			HBITMAP sceneBitmap = CreateCompatibleBitmap(client, RectangleWidth(update), RectangleHeight(update));
 			HBITMAP previousSceneBitmap = SelectObject(scene, sceneBitmap);
 			HBRUSH backgroundColor = CreateSolidBrush(RGB(0, 0, 0));
 
@@ -1033,10 +1033,10 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			blend.BlendOp = AC_SRC_OVER;
 			blend.SourceConstantAlpha = 128;
 			blend.AlphaFormat = AC_SRC_ALPHA;
-			BOOL blended = GdiAlphaBlend(scene, 0, 0, GetWidth(update), GetHeight(update),
-										 memory, update.left, update.top, GetWidth(update), GetHeight(update), blend);
+			BOOL blended = GdiAlphaBlend(scene, 0, 0, RectangleWidth(update), RectangleHeight(update),
+										 memory, update.left, update.top, RectangleWidth(update), RectangleHeight(update), blend);
 
-			if (HasArea(displayRectangle)) {
+			if (RectangleHasArea(displayRectangle)) {
 				// Display rectangle must be relative to the update region, not the client
 				BitBlt(scene, (displayRectangle.left - update.left), (displayRectangle.top - update.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
 					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
@@ -1056,7 +1056,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				}
 			}
 
-			BitBlt(client, update.left, update.top, GetWidth(update), GetHeight(update), scene, 0, 0, SRCCOPY);
+			BitBlt(client, update.left, update.top, RectangleWidth(update), RectangleHeight(update), scene, 0, 0, SRCCOPY);
 
 			// Clean up
 			DeleteObject(backgroundColor);
