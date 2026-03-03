@@ -1,4 +1,4 @@
-// TODO: ensure behavior when rectangle is not normalized is logical, decide when selections should be added to the history, refactor, save dialog, proportional scaling with mouse?
+// TODO: refactor, handle when selection history is out of memory, customizable selection key, ensure consistent resizing logic when rectangle is not normalized
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <assert.h>
