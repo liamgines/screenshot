@@ -1,4 +1,4 @@
-// TODO: refactor, handle when selection history is out of memory, customizable selection key, ensure consistent resizing logic when rectangle is not normalized
+// TODO: refactor, handle when selection history is out of memory, customizable selection key, ensure consistent resizing logic when rectangle is not normalized, gifs
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <assert.h>
