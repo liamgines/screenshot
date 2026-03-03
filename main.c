@@ -9,6 +9,7 @@
 #define STBIW_WINDOWS_UTF8
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#include "rectangle.h"
 
 #define VK_V 0x56
 #define VK_E 0x45
@@ -18,15 +19,6 @@
 
 #define ARRAY_LENGTH(array) (sizeof(array) / sizeof(array[0]))
 
-#define SWAP(TYPE, x, y) \
-do {					 \
-	TYPE temp;			 \
-	temp = x;			 \
-	x = y;				 \
-	y = temp;			 \
-} while (0)
-
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 #define MIDPOINT(x, y) (((x) + (y)) / 2)
@@ -83,12 +75,6 @@ HACCEL shortcutTable = NULL;
 #define ALT_STRING L"ALT"
 #define HEX_PREFIX L"0X"
 
-RECT RectangleNormalize(RECT rectangle) {
-	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
-	if (rectangle.bottom - rectangle.top < 0) SWAP(LONG, rectangle.bottom, rectangle.top);
-	return rectangle;
-}
-
 // Expects a normalized rectangle
 RECT RectangleTruncate(RECT r) {
 	if (r.left < 0) r.left = 0;
@@ -112,22 +98,6 @@ POINT GetDifference(POINT p1, POINT p2) {
 	difference.x = p1.x - p2.x;
 	difference.y = p1.y - p2.y;
 	return difference;
-}
-
-RECT RectangleTranslate(RECT rectangle, POINT translation) {
-	rectangle.left += translation.x;
-	rectangle.top += translation.y;
-	rectangle.right += translation.x;
-	rectangle.bottom += translation.y;
-	return rectangle;
-}
-
-LONG RectangleWidth(RECT r) {
-	return r.right - r.left;
-}
-
-LONG RectangleHeight(RECT r) {
-	return r.bottom - r.top;
 }
 
 #pragma pack(push, 1)
@@ -308,16 +278,6 @@ INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
 	return input;
 }
 
-RECT RectangleToSquare(RECT a) {
-	LONG length = MAX(RectangleWidth(a), RectangleHeight(a));
-	return (RECT) {
-		.left = a.left,
-		.top = a.top,
-		.right = a.left + length,
-		.bottom = a.top + length
-	};
-}
-
 typedef struct Selections {
 	RECT data;
 	struct Selections *prev;
@@ -388,29 +348,6 @@ Selections *SelectionsFirst(Selections *current) {
 
 static Selections *currentSelection = NULL;
 
-int GCD(int a, int b) {
-	if (b == 0) return a;
-
-	return GCD(b, a % b);
-}
-
-SIZE RectangleAspectRatio(RECT a) {
-	int w = RectangleWidth(a);
-	int h = RectangleHeight(a);
-	int gcd = GCD(w, h);
-
-	SIZE aspectRatio = { 0 };
-	if (gcd) {
-		aspectRatio.cx = abs(w / gcd);
-		aspectRatio.cy = abs(h / gcd);
-	}
-	return aspectRatio;
-}
-
-BOOL RectangleEqual(RECT a, RECT b) {
-	return (a.left == b.left) && (a.top == b.top) && (a.right == b.right) && (a.bottom == b.bottom);
-}
-
 BOOL RectangleOutOfBounds(RECT a) {
 	a = RectangleNormalize(a);
 	return !RectangleEqual(a, RectangleTruncate(a));
@@ -422,16 +359,6 @@ BOOL AspectRatioEqual(SIZE a, SIZE b) {
 
 BOOL AspectRatioValid(SIZE a) {
 	return (a.cx > 0) && (a.cy > 0);
-}
-
-LONG *RectangleBottom(RECT *a) {
-	if (a->bottom >= a->top) return &a->bottom;
-	return &a->top;
-}
-
-LONG *RectangleRight(RECT *a) {
-	if (a->right >= a->left) return &a->right;
-	return &a->left;
 }
 
 int FreeSaveScreenshot(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_t *fileDirectory, SaveScreenshotParameter *parameter, BOOL error) {
@@ -698,17 +625,6 @@ void PaintAnchor(HDC destination, POINT p, COLORREF color, LONG size) {
 	RECT box = GetBox(p, size);
 	FillRect(destination, &box, boxColor);
 	DeleteObject(boxColor);
-}
-
-LONG RectangleArea(RECT r) {
-	LONG w = r.right - r.left;
-	LONG h = r.bottom - r.top;
-	return w * h;
-}
-
-BOOL RectangleHasArea(RECT r) {
-	if (RectangleArea(r) != 0) return TRUE;
-	return FALSE;
 }
 
 typedef struct {
