@@ -94,9 +94,7 @@ typedef struct {
 	uint8_t red;
 	uint8_t alpha;
 } BGRA32;
-#pragma pack(pop)
 
-#pragma pack(push, 1)
 typedef struct {
 	uint8_t red;
 	uint8_t green;
@@ -105,7 +103,7 @@ typedef struct {
 } RGBA32;
 #pragma pack(pop)
 
-uint32_t BGRAtoRGBA(uint32_t value) {
+uint32_t BGRA32toRGBA32(uint32_t value) {
 	BGRA32 bgra = *((BGRA32 *) &value);
 	RGBA32 rgba = { .red = bgra.red, .green = bgra.green, .blue = bgra.blue, .alpha =  bgra.alpha };
 	uint32_t returnValue = *((uint32_t*) &rgba);
@@ -131,7 +129,7 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	int i = 0;
 	for (int y = args.selectionRectangle.top; y < args.selectionRectangle.bottom; y++) {
 		for (int x = args.selectionRectangle.left; x < args.selectionRectangle.right; x++) {
-			selectionPixels[i] = BGRAtoRGBA(args.screenPixels[(y * args.screenWidth) + x]);
+			selectionPixels[i] = BGRA32toRGBA32(args.screenPixels[(y * args.screenWidth) + x]);
 			i += 1;
 		}
 	}
