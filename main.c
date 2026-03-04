@@ -10,6 +10,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #include "rectangle.h"
+#include "rectangle_list.h"
 
 #define VK_V 0x56
 #define VK_E 0x45
@@ -261,74 +262,6 @@ INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
 	input.ki.wVk = virtualKeyCode;
 	if (keyUp) input.ki.dwFlags = KEYEVENTF_KEYUP;
 	return input;
-}
-
-typedef struct RectangleNode {
-	RECT data;
-	struct RectangleNode *prev;
-	struct RectangleNode *next;
-} RectangleNode;
-
-void RectangleListFree(RectangleNode *xs) {
-	if (xs) {
-		RectangleNode *next = xs->next;
-		free(xs);
-		RectangleListFree(next);
-	}
-}
-
-RectangleNode *RectangleListAdd(RectangleNode *prev, RECT data) {
-	// Prevent duplicate from being added
-	if (prev && RectangleEqual(prev->data, data)) return prev;
-
-	// TODO: Remove first node and add try adding again if out of memory
-	RectangleNode *selection = malloc(sizeof(RectangleNode));
-	if (!selection) return prev;
-
-	selection->data = data;
-	selection->prev = prev;
-	selection->next = NULL;
-
-	if (prev) {
-		RectangleListFree(prev->next);
-		prev->next = selection;
-	}
-
-	return selection;
-}
-
-RectangleNode *RectangleListInsertAfter(RectangleNode *prev, RECT data) {
-	if (prev && RectangleEqual(prev->data, data)) return prev;
-
-	// TODO: Remove first node and try inserting again if out of memory
-	RectangleNode *selection = malloc(sizeof(RectangleNode));
-	if (!selection) return prev;
-
-	selection->data = data;
-	selection->prev = prev;
-	selection->next = NULL;
-
-	if (prev) {
-		selection->next = prev->next;
-		prev->next = selection;
-	}
-
-	return selection;
-}
-
-RectangleNode *RectangleListUndo(RectangleNode *prev) {
-	if (!prev || !prev->prev || RectangleHasArea(prev->data)) return prev;
-	return RectangleListUndo(prev->prev);
-}
-
-RectangleNode *RectangleListRedo(RectangleNode *next) {
-	if (!next || !next->next || RectangleHasArea(next->data)) return next;
-	return RectangleListRedo(next->next);
-}
-
-RectangleNode *RectangleListFirst(RectangleNode *current) {
-	if (!current || !current->prev) return current;
-	return RectangleListFirst(current->prev);
 }
 
 static RectangleNode *currentSelection = NULL;
