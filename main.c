@@ -76,11 +76,6 @@ HACCEL shortcutTable = NULL;
 #define ALT_STRING L"ALT"
 #define HEX_PREFIX L"0X"
 
-POINT GetPoint(LPARAM lParameter) {
-	POINT point = { .x = GET_X_LPARAM(lParameter), .y = GET_Y_LPARAM(lParameter) };
-	return point;
-}
-
 POINT GetDifference(POINT p1, POINT p2) {
 	POINT difference;
 	difference.x = p1.x - p2.x;
@@ -488,13 +483,6 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 RECT GetBox(POINT p, const LONG size) {
 	RECT box = { .left = p.x - size/2, .top = p.y - size/2, .right = p.x + size/2, .bottom = p.y + size/2};
 	return box;
-}
-
-void PaintAnchor(HDC destination, POINT p, COLORREF color, LONG size) {
-	HBRUSH boxColor = CreateSolidBrush(color);
-	RECT box = GetBox(p, size);
-	FillRect(destination, &box, boxColor);
-	DeleteObject(boxColor);
 }
 
 typedef struct {
