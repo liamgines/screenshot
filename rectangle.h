@@ -84,12 +84,12 @@ static RECT RectangleNormalizeTruncate(RECT r, RECT bounds) {
 	return RectangleTruncate(RectangleNormalize(r), bounds);
 }
 
-BOOL RectangleOutOfBounds(RECT a, RECT bounds) {
+static BOOL RectangleOutOfBounds(RECT a, RECT bounds) {
 	a = RectangleNormalize(a);
 	return !RectangleEqual(a, RectangleTruncate(a, bounds));
 }
 
-RECT RectangleUpdateRegion(RECT before, RECT after, RECT bounds, int padding) {
+static RECT RectangleUpdateRegion(RECT before, RECT after, RECT bounds, int padding) {
 	before = RectangleNormalizeTruncate(before, bounds);
 	after = RectangleNormalizeTruncate(after, bounds);
 	return (RECT) {
@@ -123,4 +123,4 @@ static SIZE RectangleAspectRatio(RECT a) {
 	return aspectRatio;
 }
 
-#endif
+#endif // RECTANGLE_H
