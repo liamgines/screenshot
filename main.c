@@ -76,7 +76,7 @@ HACCEL shortcutTable = NULL;
 #define ALT_STRING L"ALT"
 #define HEX_PREFIX L"0X"
 
-POINT GetDifference(POINT p1, POINT p2) {
+POINT PositionSubtract(POINT p1, POINT p2) {
 	POINT difference;
 	difference.x = p1.x - p2.x;
 	difference.y = p1.y - p2.y;
@@ -754,7 +754,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
 			else if ((wParameter & MK_LBUTTON) && drag) {
-				POINT difference = GetDifference(point, previousPosition);
+				POINT difference = PositionSubtract(point, previousPosition);
 				selectionRectangle = RectangleTranslate(selectionRectangle, difference);
 				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
