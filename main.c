@@ -112,7 +112,7 @@ uint32_t BGRAtoRGBA(uint32_t value) {
 }
 
 // https://stackoverflow.com/a/6218957
-BOOL FileExists(LPCWSTR path) {
+BOOL FileOrDirectoryExists(LPCWSTR path) {
 	DWORD attributes = GetFileAttributes(path);
 	return attributes != INVALID_FILE_ATTRIBUTES;
 }
@@ -165,7 +165,7 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 
 			return 1;
 		}
-	} while (FileExists(filePath));
+	} while (FileOrDirectoryExists(filePath));
 
 	char outputLocation[MAX_PATH + 1] = "";
 	stbiw_convert_wchar_to_utf8(outputLocation, MAX_PATH + 1, filePath);
@@ -903,7 +903,7 @@ BOOL GetExeDirectory(wchar_t *d) {
 	return (PathCchRemoveFileSpec(d, MAX_PATH) == S_OK);
 }
 
-BOOL GetSettingsPath(wchar_t *d) {
+BOOL GetConfigPath(wchar_t *d) {
 	return (PathCombine(d, exeDirectory, CONFIG_FILE) != NULL);
 }
 
@@ -1027,7 +1027,7 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 		return 1;
 	}
 
-	if (!GetExeDirectory(exeDirectory) || !GetSettingsPath(settingsPath)) {
+	if (!GetExeDirectory(exeDirectory) || !GetConfigPath(settingsPath)) {
 		MessageBoxW(NULL, L"Could not find config path or directory where executable is running.", NULL, MB_OK | MB_ICONERROR);
 		return 1;
 	}
