@@ -770,6 +770,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 			SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 			SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
+			screenRectangle = RectangleMake(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
 			// Create screen compatible bitmap and associate it with the memory device context
 			memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -1132,11 +1133,8 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
 
-	screenRectangle.left = 0;
-	screenRectangle.top = 0;
 	// "By convention, the right and bottom edges of the rectangle are normally considered exclusive."
-	screenRectangle.right = SCREEN_WIDTH;
-	screenRectangle.bottom = SCREEN_HEIGHT;
+	screenRectangle = RectangleMake(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
 	screen = GetDC(SCREEN_HANDLE);
 	memory = CreateCompatibleDC(screen);

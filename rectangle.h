@@ -19,6 +19,10 @@ static int GCD(int a, int b) {
 	return GCD(b, a % b);
 }
 
+static RECT RectangleMake(LONG left, LONG top, LONG right, LONG bottom) {
+	return (RECT) { .left = left, .top = top, .right = right, .bottom = bottom };
+}
+
 static LONG RectangleWidth(RECT r) {
 	return r.right - r.left;
 }
