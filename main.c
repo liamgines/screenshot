@@ -11,6 +11,7 @@
 #include "stb_image_write.h"
 #include "rectangle.h"
 #include "rectangle_list.h"
+#include "file_info.h"
 
 #define VK_V 0x56
 #define VK_E 0x45
@@ -68,7 +69,6 @@ HACCEL shortcutTable = NULL;
 #define ID_OPEN_CONFIG 40014
 #define HOTKEY_SCREEN_CAPTURE 40015
 
-#define CONFIG_FILE L"screenshot.ini"
 #define SHIFT_STRING L"SHIFT"
 #define CTRL_STRING L"CTRL"
 #define ALT_STRING L"ALT"
@@ -109,18 +109,6 @@ uint32_t BGRAtoRGBA(uint32_t value) {
 	RGBA32 rgba = { .red = bgra.red, .green = bgra.green, .blue = bgra.blue, .alpha =  bgra.alpha };
 	uint32_t returnValue = *((uint32_t*) &rgba);
 	return returnValue;
-}
-
-// https://stackoverflow.com/a/6218957
-BOOL FileOrDirectoryExists(LPCWSTR path) {
-	DWORD attributes = GetFileAttributes(path);
-	return attributes != INVALID_FILE_ATTRIBUTES;
-}
-
-// https://stackoverflow.com/a/6218445/32242805
-BOOL DirectoryExists(LPCWSTR path) {
-	DWORD attributes = GetFileAttributes(path);
-	return (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 
 typedef struct {
@@ -895,16 +883,6 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		default:
 			return DefWindowProc(window, message, wParameter, lParameter);
 	}
-}
-
-BOOL GetExeDirectory(wchar_t *d) {
-	GetModuleFileName(NULL, d, MAX_PATH);
-	if (GetLastError()) return FALSE;
-	return (PathCchRemoveFileSpec(d, MAX_PATH) == S_OK);
-}
-
-BOOL GetConfigPath(wchar_t *d) {
-	return (PathCombine(d, exeDirectory, CONFIG_FILE) != NULL);
 }
 
 void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, wchar_t *configVar) {
