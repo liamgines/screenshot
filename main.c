@@ -13,6 +13,7 @@
 #include "rectangle_list.h"
 #include "file_info.h"
 #include "aspect_ratio.h"
+#include "pixel_color_data.h"
 
 #define VK_V 0x56
 #define VK_E 0x45
@@ -85,29 +86,6 @@ POINT GetDifference(POINT p1, POINT p2) {
 	difference.x = p1.x - p2.x;
 	difference.y = p1.y - p2.y;
 	return difference;
-}
-
-#pragma pack(push, 1)
-typedef struct {
-	uint8_t blue;
-	uint8_t green;
-	uint8_t red;
-	uint8_t alpha;
-} BGRA32;
-
-typedef struct {
-	uint8_t red;
-	uint8_t green;
-	uint8_t blue;
-	uint8_t alpha;
-} RGBA32;
-#pragma pack(pop)
-
-uint32_t BGRA32toRGBA32(uint32_t value) {
-	BGRA32 bgra = *((BGRA32 *) &value);
-	RGBA32 rgba = { .red = bgra.red, .green = bgra.green, .blue = bgra.blue, .alpha =  bgra.alpha };
-	uint32_t returnValue = *((uint32_t*) &rgba);
-	return returnValue;
 }
 
 typedef struct {
