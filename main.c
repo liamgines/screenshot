@@ -12,6 +12,7 @@
 #include "rectangle.h"
 #include "rectangle_list.h"
 #include "file_info.h"
+#include "aspect_ratio.h"
 
 #define VK_V 0x56
 #define VK_E 0x45
@@ -253,14 +254,6 @@ INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
 }
 
 static RectangleNode *currentSelection = NULL;
-
-BOOL AspectRatioEqual(SIZE a, SIZE b) {
-	return (a.cx == b.cx && a.cy == b.cy);
-}
-
-BOOL AspectRatioIsPositive(SIZE a) {
-	return (a.cx > 0) && (a.cy > 0);
-}
 
 int FreeSaveScreenshot(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_t *fileDirectory, SaveScreenshotParameter *parameter, BOOL error) {
 	free(selectionPixels);
