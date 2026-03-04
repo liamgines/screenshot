@@ -3,11 +3,11 @@
 
 #include <windows.h>
 
-BOOL AspectRatioEqual(SIZE a, SIZE b) {
+static BOOL AspectRatioEqual(SIZE a, SIZE b) {
 	return (a.cx == b.cx && a.cy == b.cy);
 }
 
-BOOL AspectRatioIsPositive(SIZE a) {
+static BOOL AspectRatioIsPositive(SIZE a) {
 	return (a.cx > 0) && (a.cy > 0);
 }
 
