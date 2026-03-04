@@ -258,7 +258,7 @@ BOOL AspectRatioEqual(SIZE a, SIZE b) {
 	return (a.cx == b.cx && a.cy == b.cy);
 }
 
-BOOL AspectRatioValid(SIZE a) {
+BOOL AspectRatioIsPositive(SIZE a) {
 	return (a.cx > 0) && (a.cy > 0);
 }
 
@@ -275,7 +275,7 @@ int FreeSaveScreenshot(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_
 
 int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	static SIZE prevAspectRatio = { 0 };
-	if (!AspectRatioValid(prevAspectRatio)) {
+	if (!AspectRatioIsPositive(prevAspectRatio)) {
 		prevAspectRatio.cx = 1;
 		prevAspectRatio.cy = 1;
 	}
@@ -418,7 +418,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_DOWNSCALE: {
 			RECT selectionRectangleCopy = selectionRectangle;
-			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
+			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioIsPositive(aspectRatio)) {
 				*selectionRight -= prevAspectRatio.cx;
 				*selectionBottom -= prevAspectRatio.cy;
 			}
@@ -435,7 +435,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_UPSCALE: {
 			RECT selectionRectangleCopy = selectionRectangle;
-			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
+			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioIsPositive(aspectRatio)) {
 				*selectionRight += prevAspectRatio.cx;
 				*selectionBottom  += prevAspectRatio.cy;
 			}
