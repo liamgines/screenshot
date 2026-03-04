@@ -14,6 +14,7 @@
 #include "file_info.h"
 #include "aspect_ratio.h"
 #include "pixel_color_data.h"
+#include "position.h"
 
 #define VK_V 0x56
 #define VK_E 0x45
@@ -75,13 +76,6 @@ HACCEL shortcutTable = NULL;
 #define CTRL_STRING L"CTRL"
 #define ALT_STRING L"ALT"
 #define HEX_PREFIX L"0X"
-
-POINT PositionSubtract(POINT p1, POINT p2) {
-	POINT difference;
-	difference.x = p1.x - p2.x;
-	difference.y = p1.y - p2.y;
-	return difference;
-}
 
 typedef struct {
 	int selectionArea;
