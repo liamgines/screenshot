@@ -1,4 +1,4 @@
-// TODO: refactor, handle when selection history is out of memory, customizable selection key, ensure consistent resizing logic when rectangle is not normalized, gifs
+// TODO: refactor, research dpi scaling, handle when selection history is out of memory, customizable selection key, ensure consistent resizing logic when rectangle is not normalized, gifs
 #define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <assert.h>
@@ -263,26 +263,26 @@ INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
 	return input;
 }
 
-typedef struct Selections {
+typedef struct RectangleNode {
 	RECT data;
-	struct Selections *prev;
-	struct Selections *next;
-} Selections;
+	struct RectangleNode *prev;
+	struct RectangleNode *next;
+} RectangleNode;
 
-void SelectionsFree(Selections *xs) {
+void RectangleListFree(RectangleNode *xs) {
 	if (xs) {
-		Selections *next = xs->next;
+		RectangleNode *next = xs->next;
 		free(xs);
-		SelectionsFree(next);
+		RectangleListFree(next);
 	}
 }
 
-Selections *SelectionsAdd(Selections *prev, RECT data) {
+RectangleNode *RectangleListAdd(RectangleNode *prev, RECT data) {
 	// Prevent duplicate from being added
 	if (prev && RectangleEqual(prev->data, data)) return prev;
 
 	// TODO: Remove first node and add try adding again if out of memory
-	Selections *selection = malloc(sizeof(Selections));
+	RectangleNode *selection = malloc(sizeof(RectangleNode));
 	if (!selection) return prev;
 
 	selection->data = data;
@@ -290,18 +290,18 @@ Selections *SelectionsAdd(Selections *prev, RECT data) {
 	selection->next = NULL;
 
 	if (prev) {
-		SelectionsFree(prev->next);
+		RectangleListFree(prev->next);
 		prev->next = selection;
 	}
 
 	return selection;
 }
 
-Selections *SelectionsInsertAfter(Selections *prev, RECT data) {
+RectangleNode *RectangleListInsertAfter(RectangleNode *prev, RECT data) {
 	if (prev && RectangleEqual(prev->data, data)) return prev;
 
 	// TODO: Remove first node and try inserting again if out of memory
-	Selections *selection = malloc(sizeof(Selections));
+	RectangleNode *selection = malloc(sizeof(RectangleNode));
 	if (!selection) return prev;
 
 	selection->data = data;
@@ -316,22 +316,22 @@ Selections *SelectionsInsertAfter(Selections *prev, RECT data) {
 	return selection;
 }
 
-Selections *SelectionsUndo(Selections *prev) {
+RectangleNode *RectangleListUndo(RectangleNode *prev) {
 	if (!prev || !prev->prev || RectangleHasArea(prev->data)) return prev;
-	return SelectionsUndo(prev->prev);
+	return RectangleListUndo(prev->prev);
 }
 
-Selections *SelectionsRedo(Selections *next) {
+RectangleNode *RectangleListRedo(RectangleNode *next) {
 	if (!next || !next->next || RectangleHasArea(next->data)) return next;
-	return SelectionsRedo(next->next);
+	return RectangleListRedo(next->next);
 }
 
-Selections *SelectionsFirst(Selections *current) {
+RectangleNode *RectangleListFirst(RectangleNode *current) {
 	if (!current || !current->prev) return current;
-	return SelectionsFirst(current->prev);
+	return RectangleListFirst(current->prev);
 }
 
-static Selections *currentSelection = NULL;
+static RectangleNode *currentSelection = NULL;
 
 BOOL AspectRatioEqual(SIZE a, SIZE b) {
 	return (a.cx == b.cx && a.cy == b.cy);
@@ -475,9 +475,9 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_UNDO:
 			if (currentSelection && currentSelection->prev) {
-				currentSelection = SelectionsUndo(currentSelection->prev);
+				currentSelection = RectangleListUndo(currentSelection->prev);
 				// Prevent current selection from being empty if possible when the first element is reached and empty
-				if (!RectangleHasArea(currentSelection->data)) currentSelection = SelectionsRedo(currentSelection->next);
+				if (!RectangleHasArea(currentSelection->data)) currentSelection = RectangleListRedo(currentSelection->next);
 
 				selectionRectangle = currentSelection->data;
 			}
@@ -486,9 +486,9 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_REDO:
 			if (currentSelection && currentSelection->next) {
-				currentSelection = SelectionsRedo(currentSelection->next);
+				currentSelection = RectangleListRedo(currentSelection->next);
 
-				if (!RectangleHasArea(currentSelection->data)) currentSelection = SelectionsUndo(currentSelection->prev);
+				if (!RectangleHasArea(currentSelection->data)) currentSelection = RectangleListUndo(currentSelection->prev);
 
 				selectionRectangle = currentSelection->data;
 			}
@@ -751,7 +751,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_HOTKEY:
 			if (!IsWindowVisible(window)) {
 				selectionRectangle = (RECT){ 0 };
-				currentSelection = SelectionsInsertAfter(currentSelection, selectionRectangle);
+				currentSelection = RectangleListInsertAfter(currentSelection, selectionRectangle);
 				// Transfer color data from screen to memory
 				BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
 				if (GetForegroundWindow() != window) SetForegroundWindow(window);
@@ -764,7 +764,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			if (HandleKeyCommand(window, message, wParameter, lParameter) == 0) {
 				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
-				currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
+				currentSelection = RectangleListAdd(currentSelection, selectionRectangle);
 				return 0;
 			}
 			return 1;
@@ -890,8 +890,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			selectionRectangle = RectangleNormalizeTruncate(selectionRectangle, screenRectangle);
 
 			// Track selection history in list
-			currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
-			// assert(selections == SelectionsFirst(currentSelection));
+			currentSelection = RectangleListAdd(currentSelection, selectionRectangle);
+			// assert(selections == RectangleListFirst(currentSelection));
 
 			// If selection is not visible when left click is released, show default cursor
 			if (!RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
@@ -955,7 +955,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_DESTROY:
 			// Free selection history
-			SelectionsFree(SelectionsFirst(currentSelection));
+			RectangleListFree(RectangleListFirst(currentSelection));
 			PostQuitMessage(0);
 			return 0;
 
