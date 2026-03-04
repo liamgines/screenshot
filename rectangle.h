@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <stdlib.h>
 
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define SWAP(TYPE, x, y) \
 do {					 \
@@ -68,6 +69,35 @@ static RECT RectangleNormalize(RECT rectangle) {
 	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
 	if (rectangle.bottom - rectangle.top < 0) SWAP(LONG, rectangle.bottom, rectangle.top);
 	return rectangle;
+}
+
+// Expects a normalized rectangle
+static RECT RectangleTruncate(RECT r, RECT bounds) {
+	if (r.left < bounds.left) r.left = bounds.left;
+	if (r.top < bounds.top) r.top = bounds.top;
+	if (r.right > bounds.right) r.right = bounds.right;
+	if (r.bottom > bounds.bottom) r.bottom = bounds.bottom;
+	return r;
+}
+
+static RECT RectangleNormalizeTruncate(RECT r, RECT bounds) {
+	return RectangleTruncate(RectangleNormalize(r), bounds);
+}
+
+BOOL RectangleOutOfBounds(RECT a, RECT bounds) {
+	a = RectangleNormalize(a);
+	return !RectangleEqual(a, RectangleTruncate(a, bounds));
+}
+
+RECT RectangleUpdateRegion(RECT before, RECT after, RECT bounds, int padding) {
+	before = RectangleNormalizeTruncate(before, bounds);
+	after = RectangleNormalizeTruncate(after, bounds);
+	return (RECT) {
+		.left = MIN(before.left, after.left) - padding,
+			.top = MIN(before.top, after.top) - padding,
+			.right = MAX(before.right, after.right) + padding,
+			.bottom = MAX(before.bottom, after.bottom) + padding
+	};
 }
 
 static RECT RectangleToSquare(RECT a) {

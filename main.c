@@ -19,8 +19,6 @@
 
 #define ARRAY_LENGTH(array) (sizeof(array) / sizeof(array[0]))
 
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
-
 #define MIDPOINT(x, y) (((x) + (y)) / 2)
 
 #ifndef UNICODE
@@ -74,19 +72,6 @@ HACCEL shortcutTable = NULL;
 #define CTRL_STRING L"CTRL"
 #define ALT_STRING L"ALT"
 #define HEX_PREFIX L"0X"
-
-// Expects a normalized rectangle
-RECT RectangleTruncate(RECT r, RECT bounds) {
-	if (r.left < bounds.left) r.left = bounds.left;
-	if (r.top < bounds.top) r.top = bounds.top;
-	if (r.right > bounds.right) r.right = bounds.right;
-	if (r.bottom > bounds.bottom) r.bottom = bounds.bottom;
-	return r;
-}
-
-RECT RectangleNormalizeTruncate(RECT r, RECT bounds) {
-	return RectangleTruncate(RectangleNormalize(r), bounds);
-}
 
 POINT GetPoint(LPARAM lParameter) {
 	POINT point = { .x = GET_X_LPARAM(lParameter), .y = GET_Y_LPARAM(lParameter) };
@@ -347,11 +332,6 @@ Selections *SelectionsFirst(Selections *current) {
 }
 
 static Selections *currentSelection = NULL;
-
-BOOL RectangleOutOfBounds(RECT a, RECT bounds) {
-	a = RectangleNormalize(a);
-	return !RectangleEqual(a, RectangleTruncate(a, bounds));
-}
 
 BOOL AspectRatioEqual(SIZE a, SIZE b) {
 	return (a.cx == b.cx && a.cy == b.cy);
@@ -720,17 +700,6 @@ HCURSOR GetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
 	else if (PtInRect(&boxes.topMid, point) || PtInRect(&boxes.bottomMid, point))	  return LoadCursor(NULL, IDC_SIZENS);
 	else if (PtInRect(&displayRectangle, point))									  return LoadCursor(NULL, IDC_SIZEALL);
 	return LoadCursor(NULL, IDC_ARROW);
-}
-
-RECT RectangleUpdateRegion(RECT before, RECT after, RECT bounds, int padding) {
-	before = RectangleNormalizeTruncate(before, bounds);
-	after = RectangleNormalizeTruncate(after, bounds);
-	return (RECT) {
-		.left = MIN(before.left, after.left) - padding,
-		.top = MIN(before.top, after.top) - padding,
-		.right = MAX(before.right, after.right) + padding,
-		.bottom = MAX(before.bottom, after.bottom) + padding
-	};
 }
 
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
