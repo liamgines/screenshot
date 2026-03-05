@@ -231,7 +231,7 @@ int SaveScreenshotFree(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_
 	return 0;
 }
 
-int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
+int OnConfigShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	static SIZE prevAspectRatio = { 0 };
 	if (!AspectRatioIsPositive(prevAspectRatio)) {
 		prevAspectRatio.cx = 1;
@@ -633,7 +633,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			return 0;
 
 		case WM_COMMAND:
-			if (HandleKeyCommand(window, message, wParameter, lParameter) == 0) {
+			if (OnConfigShortcut(window, message, wParameter, lParameter) == 0) {
 				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 				currentSelection = RectangleListAdd(currentSelection, selectionRectangle);
