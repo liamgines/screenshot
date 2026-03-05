@@ -106,14 +106,14 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 
 	EnterCriticalSection(&criticalSection);
 
-	wchar_t filePath[MAX_PATH + 1 + 1] = L"";
-	wchar_t fileName[MAX_PATH + 1 + 1] = L"";
+	wchar_t screenshotPath[MAX_PATH + 1 + 1] = L"";
+	wchar_t screenshotName[MAX_PATH + 1 + 1] = L"";
 	int n = 1;
 	do {
-		swprintf(fileName, MAX_PATH + 1 + 1, L"%s%d.png", screenshotPrefix, n++);
+		swprintf(screenshotName, MAX_PATH + 1 + 1, L"%s%d.png", screenshotPrefix, n++);
 
-		PathCombine(filePath, args.screenshotDirectory, fileName);
-		if (wcslen(filePath) > MAX_PATH) {
+		PathCombine(screenshotPath, args.screenshotDirectory, screenshotName);
+		if (wcslen(screenshotPath) > MAX_PATH) {
 			// TODO: Double check
 			free(selectionPixels);
 			free(args.screenPixels);
@@ -122,11 +122,11 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 
 			return 1;
 		}
-	} while (FileOrDirectoryExists(filePath));
+	} while (FileOrDirectoryExists(screenshotPath));
 
-	char outputLocation[MAX_PATH + 1] = "";
-	stbiw_convert_wchar_to_utf8(outputLocation, MAX_PATH + 1, filePath);
-	int imageWritten = stbi_write_png(outputLocation, args.selectionWidth, args.selectionHeight,
+	char convertedScreenshotPath[MAX_PATH + 1] = "";
+	stbiw_convert_wchar_to_utf8(convertedScreenshotPath, MAX_PATH + 1, screenshotPath);
+	int imageWritten = stbi_write_png(convertedScreenshotPath, args.selectionWidth, args.selectionHeight,
 		4, selectionPixels, args.selectionWidth * sizeof(uint32_t));
 
 	// TODO: Double check
