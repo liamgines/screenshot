@@ -654,7 +654,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_LBUTTONDOWN: {
 			BOOL cursorInSelection = PtInRect(&displayRectangle, point);
-			int squareLength = RectangleMinimumSideLength(selectionRectangle);
+			int squareLength = RectangleMinSideLength(selectionRectangle);
 
 			if (PtInRect(&boxes.topLeft, point)) {
 				selectedXCorner = &selectionRectangle.left;

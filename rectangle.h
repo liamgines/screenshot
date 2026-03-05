@@ -123,7 +123,7 @@ static SIZE RectangleAspectRatio(RECT a) {
 	return aspectRatio;
 }
 
-static int RectangleMinimumSideLength(RECT a) {
+static int RectangleMinSideLength(RECT a) {
 	return MIN(RectangleWidth(a), RectangleHeight(a));
 }
 
