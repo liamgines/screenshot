@@ -231,7 +231,7 @@ int SaveScreenshotFree(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_
 	return 0;
 }
 
-int OnConfigShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
+int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	static SIZE prevAspectRatio = { 0 };
 	if (!AspectRatioIsPositive(prevAspectRatio)) {
 		prevAspectRatio.cx = 1;
@@ -563,7 +563,7 @@ AnchorBoxes FitBoxes(AnchorBoxes boxes, RECT fit) {
 	return boxes;
 }
 
-HCURSOR GetCursorBasedOnPosition(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
+HCURSOR WindowGetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
 	// If selection is not visible, show default cursor
 	if (!RectangleHasArea(displayRectangle))													  return LoadCursor(NULL, IDC_ARROW);
 	else if (PtInRect(&boxes.topLeft, point) || PtInRect(&boxes.bottomRight, point))  return LoadCursor(NULL, IDC_SIZENWSE);
@@ -633,7 +633,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			return 0;
 
 		case WM_COMMAND:
-			if (OnConfigShortcut(window, message, wParameter, lParameter) == 0) {
+			if (WindowOnShortcut(window, message, wParameter, lParameter) == 0) {
 				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, BOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 				currentSelection = RectangleListAdd(currentSelection, selectionRectangle);
@@ -644,7 +644,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_SETCURSOR: {
 			// Update cursor based on position while left click is not held
 			SHORT leftClick = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
-			if (!leftClick) SetCursor(GetCursorBasedOnPosition(point, displayRectangle, boxes));
+			if (!leftClick) SetCursor(WindowGetCursor(point, displayRectangle, boxes));
 			// If left click is held and selection is not visible, show a default resize icon
 			else if (leftClick && !RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
 			return TRUE;
