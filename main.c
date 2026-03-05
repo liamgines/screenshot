@@ -254,7 +254,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			return 0;
 
 		case ID_RELOAD_CONFIG:
-			if (!LoadConfig(window)) {
+			if (!ConfigLoad(window)) {
 				DestroyWindow(window);
 				return 1;
 			}
@@ -836,7 +836,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	}
 }
 
-void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, wchar_t *configVar) {
+void ConfigGetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, wchar_t *configVar) {
 	wchar_t keyBuffer[MAX_PATH];
 	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVar, NULL, keyBuffer, MAX_PATH, settingsPath);
 	CharUpperW(keyBuffer);
@@ -891,7 +891,7 @@ void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, 
 	}
 }
 
-UINT ShortcutModsToHotKeyMods(WORD shortcutMods) {
+UINT ConfigShortcutModsToHotKeyMods(WORD shortcutMods) {
 	UINT hotkeyMods = 0;
 	hotkeyMods |= (shortcutMods & FSHIFT) ? MOD_SHIFT : 0;
 	hotkeyMods |= (shortcutMods & FCONTROL) ? MOD_CONTROL : 0;
@@ -899,9 +899,9 @@ UINT ShortcutModsToHotKeyMods(WORD shortcutMods) {
 	return hotkeyMods;
 }
 
-BOOL LoadConfig(window) {
+BOOL ConfigLoad(window) {
 	ACCEL screenCaptureShortcut = { 0 };
-	SetShortcut(&screenCaptureShortcut, NULL, VK_SNAPSHOT, NULL, L"SCREEN_CAPTURE");
+	ConfigGetShortcut(&screenCaptureShortcut, NULL, VK_SNAPSHOT, NULL, L"SCREEN_CAPTURE");
 
 	// If shortcut table already exists, destroy it
 	if (shortcutTable) {
@@ -910,19 +910,19 @@ BOOL LoadConfig(window) {
 	}
 
 	ACCEL shortcuts[NUM_SHORTCUTS];
-	SetShortcut(&shortcuts[0], NULL, VK_ESCAPE, ID_CLOSE, L"CLOSE");
-	SetShortcut(&shortcuts[1], NULL, 'F', ID_OUTLINE_SELECTION, L"OUTLINE_SELECTION");
-	SetShortcut(&shortcuts[2], NULL, 'R', ID_RELOAD_CONFIG, L"RELOAD_CONFIG");
-	SetShortcut(&shortcuts[3], FCONTROL, 'E', ID_OPEN_PAINT, L"OPEN_PAINT");
-	SetShortcut(&shortcuts[4], FCONTROL, 'C', ID_COPY, L"COPY");
-	SetShortcut(&shortcuts[5], FCONTROL, 'W', ID_DESELECT, L"DESELECT");
-	SetShortcut(&shortcuts[6], FCONTROL, 'A', ID_SELECT_ALL, L"SELECT_ALL");
-	SetShortcut(&shortcuts[7], FCONTROL, 'Z', ID_UNDO, L"UNDO");
-	SetShortcut(&shortcuts[8], FCONTROL, 'Y', ID_REDO, L"REDO");
-	SetShortcut(&shortcuts[9], NULL, '2', ID_UPSCALE, L"UPSCALE");
-	SetShortcut(&shortcuts[10], NULL, '1', ID_DOWNSCALE, L"DOWNSCALE");
-	SetShortcut(&shortcuts[11], FCONTROL, 'S', ID_SAVE, L"SAVE");
-	SetShortcut(&shortcuts[12], NULL, VK_GRAVE, ID_OPEN_CONFIG, L"OPEN_CONFIG");
+	ConfigGetShortcut(&shortcuts[0], NULL, VK_ESCAPE, ID_CLOSE, L"CLOSE");
+	ConfigGetShortcut(&shortcuts[1], NULL, 'F', ID_OUTLINE_SELECTION, L"OUTLINE_SELECTION");
+	ConfigGetShortcut(&shortcuts[2], NULL, 'R', ID_RELOAD_CONFIG, L"RELOAD_CONFIG");
+	ConfigGetShortcut(&shortcuts[3], FCONTROL, 'E', ID_OPEN_PAINT, L"OPEN_PAINT");
+	ConfigGetShortcut(&shortcuts[4], FCONTROL, 'C', ID_COPY, L"COPY");
+	ConfigGetShortcut(&shortcuts[5], FCONTROL, 'W', ID_DESELECT, L"DESELECT");
+	ConfigGetShortcut(&shortcuts[6], FCONTROL, 'A', ID_SELECT_ALL, L"SELECT_ALL");
+	ConfigGetShortcut(&shortcuts[7], FCONTROL, 'Z', ID_UNDO, L"UNDO");
+	ConfigGetShortcut(&shortcuts[8], FCONTROL, 'Y', ID_REDO, L"REDO");
+	ConfigGetShortcut(&shortcuts[9], NULL, '2', ID_UPSCALE, L"UPSCALE");
+	ConfigGetShortcut(&shortcuts[10], NULL, '1', ID_DOWNSCALE, L"DOWNSCALE");
+	ConfigGetShortcut(&shortcuts[11], FCONTROL, 'S', ID_SAVE, L"SAVE");
+	ConfigGetShortcut(&shortcuts[12], NULL, VK_GRAVE, ID_OPEN_CONFIG, L"OPEN_CONFIG");
 
 	assert(NUM_SHORTCUTS == ARRAY_LENGTH(shortcuts));
 
@@ -939,7 +939,7 @@ BOOL LoadConfig(window) {
 	GetPrivateProfileStringW(L"output", L"FILE_PREFIX", L"Screenshot_", filePrefix, MAX_PATH, settingsPath);
 
 	UnregisterHotKey(window, HOTKEY_SCREEN_CAPTURE);
-	if (!RegisterHotKey(window, HOTKEY_SCREEN_CAPTURE, ShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
+	if (!RegisterHotKey(window, HOTKEY_SCREEN_CAPTURE, ConfigShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
 		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
 		return FALSE;
 	}
@@ -985,7 +985,7 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
 				 NULL, NULL, appInstance, NULL);
 
-	if (!LoadConfig(window)) {
+	if (!ConfigLoad(window)) {
 		// TODO: Clean up?
 		return 1;
 	}
