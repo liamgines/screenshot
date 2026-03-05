@@ -474,7 +474,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 	}
 }
 
-RECT SelectionHitbox(POINT p, const LONG size) {
+RECT SelectionHitboxMake(POINT p, const LONG size) {
 	RECT box = { .left = p.x - size/2, .top = p.y - size/2, .right = p.x + size/2, .bottom = p.y + size/2};
 	return box;
 }
@@ -537,14 +537,14 @@ typedef struct {
 
 SelectionHitboxes SelectionHitboxesMake(SelectionPoints anchors) {
 	SelectionHitboxes boxes;
-	boxes.topLeft = SelectionHitbox(anchors.topLeft, BOX_SIZE);
-	boxes.topMid = SelectionHitbox(anchors.topMid, BOX_SIZE);
-	boxes.topRight = SelectionHitbox(anchors.topRight, BOX_SIZE);
-	boxes.midLeft = SelectionHitbox(anchors.midLeft, BOX_SIZE);
-	boxes.midRight = SelectionHitbox(anchors.midRight, BOX_SIZE);
-	boxes.bottomLeft = SelectionHitbox(anchors.bottomLeft, BOX_SIZE);
-	boxes.bottomMid = SelectionHitbox(anchors.bottomMid, BOX_SIZE);
-	boxes.bottomRight = SelectionHitbox(anchors.bottomRight, BOX_SIZE);
+	boxes.topLeft = SelectionHitboxMake(anchors.topLeft, BOX_SIZE);
+	boxes.topMid = SelectionHitboxMake(anchors.topMid, BOX_SIZE);
+	boxes.topRight = SelectionHitboxMake(anchors.topRight, BOX_SIZE);
+	boxes.midLeft = SelectionHitboxMake(anchors.midLeft, BOX_SIZE);
+	boxes.midRight = SelectionHitboxMake(anchors.midRight, BOX_SIZE);
+	boxes.bottomLeft = SelectionHitboxMake(anchors.bottomLeft, BOX_SIZE);
+	boxes.bottomMid = SelectionHitboxMake(anchors.bottomMid, BOX_SIZE);
+	boxes.bottomRight = SelectionHitboxMake(anchors.bottomRight, BOX_SIZE);
 	return boxes;
 }
 
