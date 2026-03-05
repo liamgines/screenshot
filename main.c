@@ -210,7 +210,7 @@ LRESULT CopySelectionToClipboard(HWND window) {
 	return 0;
 }
 
-INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
+INPUT InputKeyMake(WORD virtualKeyCode, BOOL keyUp) {
 	INPUT input = { 0 };
 	input.type = INPUT_KEYBOARD;
 	input.ki.wVk = virtualKeyCode;
@@ -284,15 +284,15 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			ZeroMemory(inputs, sizeof(inputs));
 
 			int i = 0;
-			inputs[i++] = KeyInput(VK_CONTROL, FALSE);
-			inputs[i++] = KeyInput(VK_V, FALSE);
-			inputs[i++] = KeyInput(VK_V, TRUE);
-			inputs[i++] = KeyInput(VK_CONTROL, TRUE);
+			inputs[i++] = InputKeyMake(VK_CONTROL, FALSE);
+			inputs[i++] = InputKeyMake(VK_V, FALSE);
+			inputs[i++] = InputKeyMake(VK_V, TRUE);
+			inputs[i++] = InputKeyMake(VK_CONTROL, TRUE);
 
-			inputs[i++] = KeyInput(VK_CONTROL, FALSE);
-			inputs[i++] = KeyInput(VK_E, FALSE);
-			inputs[i++] = KeyInput(VK_E, TRUE);
-			inputs[i++] = KeyInput(VK_CONTROL, TRUE);
+			inputs[i++] = InputKeyMake(VK_CONTROL, FALSE);
+			inputs[i++] = InputKeyMake(VK_E, FALSE);
+			inputs[i++] = InputKeyMake(VK_E, TRUE);
+			inputs[i++] = InputKeyMake(VK_CONTROL, TRUE);
 
 			wchar_t selectionWidth[MAX_SCREEN_WIDTH_LEN] = { 0 };
 			wchar_t selectionHeight[MAX_SCREEN_HEIGHT_LEN] = { 0 };
@@ -302,33 +302,33 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			int j = 0;
 			while (selectionWidth[j++]) {
 				WORD numberKeyCode = selectionWidth[j - 1];
-				inputs[i++] = KeyInput(numberKeyCode, FALSE);
-				inputs[i++] = KeyInput(numberKeyCode, TRUE);
+				inputs[i++] = InputKeyMake(numberKeyCode, FALSE);
+				inputs[i++] = InputKeyMake(numberKeyCode, TRUE);
 			}
 
-			inputs[i++] = KeyInput(VK_TAB, FALSE);
-			inputs[i++] = KeyInput(VK_TAB, TRUE);
+			inputs[i++] = InputKeyMake(VK_TAB, FALSE);
+			inputs[i++] = InputKeyMake(VK_TAB, TRUE);
 
 			j = 0;
 			while (selectionHeight[j++]) {
 				WORD numberKeyCode = selectionHeight[j - 1];
-				inputs[i++] = KeyInput(numberKeyCode, FALSE);
-				inputs[i++] = KeyInput(numberKeyCode, TRUE);
+				inputs[i++] = InputKeyMake(numberKeyCode, FALSE);
+				inputs[i++] = InputKeyMake(numberKeyCode, TRUE);
 			}
 
-			inputs[i++] = KeyInput(VK_RETURN, FALSE);
-			inputs[i++] = KeyInput(VK_RETURN, TRUE);
+			inputs[i++] = InputKeyMake(VK_RETURN, FALSE);
+			inputs[i++] = InputKeyMake(VK_RETURN, TRUE);
 
-			inputs[i++] = KeyInput(VK_MENU, FALSE);
-			inputs[i++] = KeyInput(VK_H, FALSE);
-			inputs[i++] = KeyInput(VK_H, TRUE);
-			inputs[i++] = KeyInput(VK_MENU, TRUE);
+			inputs[i++] = InputKeyMake(VK_MENU, FALSE);
+			inputs[i++] = InputKeyMake(VK_H, FALSE);
+			inputs[i++] = InputKeyMake(VK_H, TRUE);
+			inputs[i++] = InputKeyMake(VK_MENU, TRUE);
 
-			inputs[i++] = KeyInput(VK_B, FALSE);
-			inputs[i++] = KeyInput(VK_B, TRUE);
+			inputs[i++] = InputKeyMake(VK_B, FALSE);
+			inputs[i++] = InputKeyMake(VK_B, TRUE);
 
-			inputs[i++] = KeyInput(VK_RETURN, FALSE);
-			inputs[i++] = KeyInput(VK_RETURN, TRUE);
+			inputs[i++] = InputKeyMake(VK_RETURN, FALSE);
+			inputs[i++] = InputKeyMake(VK_RETURN, TRUE);
 
 			assert(i < ARRAY_LENGTH(inputs));
 			UINT sent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
