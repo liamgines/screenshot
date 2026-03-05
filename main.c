@@ -85,7 +85,7 @@ typedef struct {
 	RECT selectionRectangle;
 	uint32_t *screenPixels;
 	int screenWidth;
-	wchar_t *fileDirectory;
+	wchar_t *screenshotDirectory;
 	int selectionWidth;
 	int selectionHeight;
 } SaveScreenshotParameter;
@@ -94,7 +94,7 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	SaveScreenshotParameter args = *((SaveScreenshotParameter *) parameter);
 
 	uint32_t* selectionPixels = malloc(sizeof(uint32_t) * args.selectionArea);
-	if (!selectionPixels) return SaveScreenshotFree(selectionPixels, args.screenPixels, args.fileDirectory, parameter, TRUE);
+	if (!selectionPixels) return SaveScreenshotFree(selectionPixels, args.screenPixels, args.screenshotDirectory, parameter, TRUE);
 
 	int i = 0;
 	for (int y = args.selectionRectangle.top; y < args.selectionRectangle.bottom; y++) {
@@ -112,12 +112,12 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	do {
 		swprintf(fileName, MAX_PATH + 1 + 1, L"%s%d.png", screenshotPrefix, n++);
 
-		PathCombine(filePath, args.fileDirectory, fileName);
+		PathCombine(filePath, args.screenshotDirectory, fileName);
 		if (wcslen(filePath) > MAX_PATH) {
 			// TODO: Double check
 			free(selectionPixels);
 			free(args.screenPixels);
-			free(args.fileDirectory);
+			free(args.screenshotDirectory);
 			free(parameter);
 
 			return 1;
@@ -132,7 +132,7 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	// TODO: Double check
 	free(selectionPixels);
 	free(args.screenPixels);
-	free(args.fileDirectory);
+	free(args.screenshotDirectory);
 	free(parameter);
 
 	LeaveCriticalSection(&criticalSection);
@@ -221,10 +221,10 @@ INPUT InputKeyMake(WORD virtualKeyCode, BOOL keyUp) {
 	return input;
 }
 
-int SaveScreenshotFree(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_t *fileDirectory, SaveScreenshotParameter *parameter, BOOL error) {
+int SaveScreenshotFree(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_t *screenshotDirectory, SaveScreenshotParameter *parameter, BOOL error) {
 	free(selectionPixels);
 	free(screenPixels);
-	free(fileDirectory);
+	free(screenshotDirectory);
 	free(parameter);
 
 	if (error) MessageBoxW(NULL, L"Screenshot could not be saved.", NULL, MB_OK | MB_ICONERROR);
@@ -443,17 +443,17 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			parameter->selectionRectangle = selectionRectangle;
 			parameter->screenPixels = screenPixels;
 			parameter->screenWidth = SCREEN_WIDTH;
-			wchar_t *fileDirectoryCopy = malloc(sizeof(wchar_t) * (wcslen(screenshotDirectory) + 1));
-			if (!fileDirectoryCopy) return SaveScreenshotFree(NULL, screenPixels, fileDirectoryCopy, parameter, TRUE);
+			wchar_t *screenshotDirectoryCopy = malloc(sizeof(wchar_t) * (wcslen(screenshotDirectory) + 1));
+			if (!screenshotDirectoryCopy) return SaveScreenshotFree(NULL, screenPixels, screenshotDirectoryCopy, parameter, TRUE);
 
-			wcscpy(fileDirectoryCopy, screenshotDirectory);
-			parameter->fileDirectory = fileDirectoryCopy;
+			wcscpy(screenshotDirectoryCopy, screenshotDirectory);
+			parameter->screenshotDirectory = screenshotDirectoryCopy;
 			parameter->selectionWidth = SELECTION_WIDTH;
 			parameter->selectionHeight = SELECTION_HEIGHT;
 
 			HANDLE thread = CreateThread(NULL, 0, SaveScreenshot, parameter, 0, NULL);
 			// Clean up
-			if (!thread) return SaveScreenshotFree(NULL, screenPixels, fileDirectoryCopy, parameter, TRUE);
+			if (!thread) return SaveScreenshotFree(NULL, screenPixels, screenshotDirectoryCopy, parameter, TRUE);
 			CloseHandle(thread);
 			return 0;
 		}
