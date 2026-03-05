@@ -91,7 +91,7 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	SaveScreenshotParameter args = *((SaveScreenshotParameter *) parameter);
 
 	uint32_t* selectionPixels = malloc(sizeof(uint32_t) * args.selectionArea);
-	if (!selectionPixels) return FreeSaveScreenshot(selectionPixels, args.screenPixels, args.fileDirectory, parameter, TRUE);
+	if (!selectionPixels) return SaveScreenshotFree(selectionPixels, args.screenPixels, args.fileDirectory, parameter, TRUE);
 
 	int i = 0;
 	for (int y = args.selectionRectangle.top; y < args.selectionRectangle.bottom; y++) {
@@ -220,7 +220,7 @@ INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
 
 static RectangleNode *currentSelection = NULL;
 
-int FreeSaveScreenshot(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_t *fileDirectory, SaveScreenshotParameter *parameter, BOOL error) {
+int SaveScreenshotFree(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_t *fileDirectory, SaveScreenshotParameter *parameter, BOOL error) {
 	free(selectionPixels);
 	free(screenPixels);
 	free(fileDirectory);
@@ -431,19 +431,19 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 			// Capture instance of screen pixels
 			uint32_t *screenPixels = malloc(sizeof(uint32_t) * SCREEN_AREA);
-			if (!screenPixels) return FreeSaveScreenshot(NULL, screenPixels, NULL, NULL, TRUE);
+			if (!screenPixels) return SaveScreenshotFree(NULL, screenPixels, NULL, NULL, TRUE);
 
 			int scanLinesCopied = GetDIBits(memory, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
 
 			SaveScreenshotParameter *parameter = malloc(sizeof(SaveScreenshotParameter));
-			if (!parameter) return FreeSaveScreenshot(NULL, screenPixels, NULL, parameter, TRUE);
+			if (!parameter) return SaveScreenshotFree(NULL, screenPixels, NULL, parameter, TRUE);
 
 			parameter->selectionArea = SELECTION_AREA;
 			parameter->selectionRectangle = selectionRectangle;
 			parameter->screenPixels = screenPixels;
 			parameter->screenWidth = SCREEN_WIDTH;
 			wchar_t *fileDirectoryCopy = malloc(sizeof(wchar_t) * (wcslen(fileDirectory) + 1));
-			if (!fileDirectoryCopy) return FreeSaveScreenshot(NULL, screenPixels, fileDirectoryCopy, parameter, TRUE);
+			if (!fileDirectoryCopy) return SaveScreenshotFree(NULL, screenPixels, fileDirectoryCopy, parameter, TRUE);
 
 			wcscpy(fileDirectoryCopy, fileDirectory);
 			parameter->fileDirectory = fileDirectoryCopy;
@@ -452,7 +452,7 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 			HANDLE thread = CreateThread(NULL, 0, SaveScreenshot, parameter, 0, NULL);
 			// Clean up
-			if (!thread) return FreeSaveScreenshot(NULL, screenPixels, fileDirectoryCopy, parameter, TRUE);
+			if (!thread) return SaveScreenshotFree(NULL, screenPixels, fileDirectoryCopy, parameter, TRUE);
 			CloseHandle(thread);
 			return 0;
 		}
