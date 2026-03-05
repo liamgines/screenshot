@@ -137,7 +137,7 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	return 0;
 }
 
-BOOL CopyToClipboard(HWND window, char *data, int size, UINT format) {
+BOOL CopyDataToClipboard(HWND window, char *data, int size, UINT format) {
 	// https://stackoverflow.com/a/72282181/32242805
 	HGLOBAL allocatedMemoryObject = GlobalAlloc(GMEM_MOVEABLE, size);
 	if (!allocatedMemoryObject)
@@ -198,7 +198,7 @@ LRESULT CopySelectionToClipboard(HWND window) {
 		*headerPart = header;
 		int scanLinesCopied = GetDIBits(copy, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
 
-		CopyToClipboard(window, headerAndPixels, headerAndPixelsSize, CF_DIB);
+		CopyDataToClipboard(window, headerAndPixels, headerAndPixelsSize, CF_DIB);
 	}
 
 	// Clean up
