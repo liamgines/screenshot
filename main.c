@@ -45,16 +45,17 @@ static int SCREEN_WIDTH = 0;
 static int SCREEN_HEIGHT = 0;
 static RECT screenRectangle = { 0 };
 static RECT selectionRectangle = { 0 };
-static HDC screen;
-static HDC memory;
+static HDC screenDeviceContext;
+static HDC memoryDeviceContext;
 static HBITMAP memoryBitmap;
 static HBITMAP previousMemoryBitmap;
-static wchar_t fileDirectory[MAX_PATH];
+static wchar_t screenshotDirectory[MAX_PATH];
 static wchar_t exeDirectory[MAX_PATH];
-static wchar_t settingsPath[MAX_PATH];
+static wchar_t configPath[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
-static BOOL outlineSelection = FALSE;
-static wchar_t filePrefix[MAX_PATH];
+static BOOL showSelectionOutline = FALSE;
+static wchar_t screenshotPrefix[MAX_PATH];
+static RectangleNode *lastSavedSelection = NULL;
 
 #define ID_HOTKEY_SCREEN_CAPTURE 0
 
@@ -109,7 +110,7 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	wchar_t fileName[MAX_PATH + 1 + 1] = L"";
 	int n = 1;
 	do {
-		swprintf(fileName, MAX_PATH + 1 + 1, L"%s%d.png", filePrefix, n++);
+		swprintf(fileName, MAX_PATH + 1 + 1, L"%s%d.png", screenshotPrefix, n++);
 
 		PathCombine(filePath, args.fileDirectory, fileName);
 		if (wcslen(filePath) > MAX_PATH) {
@@ -181,12 +182,12 @@ LRESULT CopySelectionToClipboard(HWND window) {
 	BITMAPINFO info = { 0 };
 	info.bmiHeader = header;
 
-	HDC copy = CreateCompatibleDC(memory);
-	HBITMAP copyBitmap = CreateCompatibleBitmap(memory, SELECTION_WIDTH, SELECTION_HEIGHT);
+	HDC copy = CreateCompatibleDC(memoryDeviceContext);
+	HBITMAP copyBitmap = CreateCompatibleBitmap(memoryDeviceContext, SELECTION_WIDTH, SELECTION_HEIGHT);
 	HBITMAP previousCopyBitmap = SelectObject(copy, copyBitmap);
 
 	BitBlt(copy, 0, 0, SELECTION_WIDTH, SELECTION_HEIGHT,
-		memory, selectionRectangle.left, selectionRectangle.top, SRCCOPY);
+		memoryDeviceContext, selectionRectangle.left, selectionRectangle.top, SRCCOPY);
 
 	int headerAndPixelsSize = sizeof(header) + (sizeof(uint32_t) * SELECTION_AREA);
 	char *headerAndPixels = malloc(headerAndPixelsSize);
@@ -220,8 +221,6 @@ INPUT InputKeyMake(WORD virtualKeyCode, BOOL keyUp) {
 	return input;
 }
 
-static RectangleNode *currentSelection = NULL;
-
 int SaveScreenshotFree(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_t *fileDirectory, SaveScreenshotParameter *parameter, BOOL error) {
 	free(selectionPixels);
 	free(screenPixels);
@@ -252,7 +251,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			return 0;
 
 		case ID_OUTLINE_SELECTION:
-			outlineSelection = !outlineSelection;
+			showSelectionOutline = !showSelectionOutline;
 			return 0;
 
 		case ID_RELOAD_CONFIG:
@@ -343,7 +342,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 		case ID_DESELECT:
 			if (RectangleHasArea(selectionRectangle)) {
 				selectionRectangle = (RECT){ 0 };
-				outlineSelection = FALSE;
+				showSelectionOutline = FALSE;
 			}
 			else ShowWindow(window, SW_HIDE);
 
@@ -351,27 +350,27 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_SELECT_ALL:
 			selectionRectangle = screenRectangle;
-			outlineSelection = TRUE;
+			showSelectionOutline = TRUE;
 			return 0;
 
 		case ID_UNDO:
-			if (currentSelection && currentSelection->prev) {
-				currentSelection = RectangleListUndo(currentSelection->prev);
+			if (lastSavedSelection && lastSavedSelection->prev) {
+				lastSavedSelection = RectangleListUndo(lastSavedSelection->prev);
 				// Prevent current selection from being empty if possible when the first element is reached and empty
-				if (!RectangleHasArea(currentSelection->data)) currentSelection = RectangleListRedo(currentSelection->next);
+				if (!RectangleHasArea(lastSavedSelection->data)) lastSavedSelection = RectangleListRedo(lastSavedSelection->next);
 
-				selectionRectangle = currentSelection->data;
+				selectionRectangle = lastSavedSelection->data;
 			}
 
 			return 0;
 
 		case ID_REDO:
-			if (currentSelection && currentSelection->next) {
-				currentSelection = RectangleListRedo(currentSelection->next);
+			if (lastSavedSelection && lastSavedSelection->next) {
+				lastSavedSelection = RectangleListRedo(lastSavedSelection->next);
 
-				if (!RectangleHasArea(currentSelection->data)) currentSelection = RectangleListUndo(currentSelection->prev);
+				if (!RectangleHasArea(lastSavedSelection->data)) lastSavedSelection = RectangleListUndo(lastSavedSelection->prev);
 
-				selectionRectangle = currentSelection->data;
+				selectionRectangle = lastSavedSelection->data;
 			}
 
 			return 0;
@@ -435,7 +434,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			uint32_t *screenPixels = malloc(sizeof(uint32_t) * SCREEN_AREA);
 			if (!screenPixels) return SaveScreenshotFree(NULL, screenPixels, NULL, NULL, TRUE);
 
-			int scanLinesCopied = GetDIBits(memory, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
+			int scanLinesCopied = GetDIBits(memoryDeviceContext, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
 
 			SaveScreenshotParameter *parameter = malloc(sizeof(SaveScreenshotParameter));
 			if (!parameter) return SaveScreenshotFree(NULL, screenPixels, NULL, parameter, TRUE);
@@ -444,10 +443,10 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			parameter->selectionRectangle = selectionRectangle;
 			parameter->screenPixels = screenPixels;
 			parameter->screenWidth = SCREEN_WIDTH;
-			wchar_t *fileDirectoryCopy = malloc(sizeof(wchar_t) * (wcslen(fileDirectory) + 1));
+			wchar_t *fileDirectoryCopy = malloc(sizeof(wchar_t) * (wcslen(screenshotDirectory) + 1));
 			if (!fileDirectoryCopy) return SaveScreenshotFree(NULL, screenPixels, fileDirectoryCopy, parameter, TRUE);
 
-			wcscpy(fileDirectoryCopy, fileDirectory);
+			wcscpy(fileDirectoryCopy, screenshotDirectory);
 			parameter->fileDirectory = fileDirectoryCopy;
 			parameter->selectionWidth = SELECTION_WIDTH;
 			parameter->selectionHeight = SELECTION_HEIGHT;
@@ -462,7 +461,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 		case ID_OPEN_CONFIG:
 			ShowWindow(window, SW_HIDE);
 
-			HANDLE config = CreateFileW(settingsPath, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			HANDLE config = CreateFileW(configPath, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 			if (config == INVALID_HANDLE_VALUE) {
 				return MessageBoxW(window, L"Config file could not be opened.", NULL, MB_OK | MB_ICONERROR);
 			}
@@ -592,7 +591,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	switch (message) {
 		case WM_SHOWWINDOW: {
 			BOOL windowShown = wParameter;
-			if (!windowShown) outlineSelection = FALSE;
+			if (!windowShown) showSelectionOutline = FALSE;
 			return DefWindowProc(window, message, wParameter, lParameter);
 		}
 
@@ -606,18 +605,18 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_DISPLAYCHANGE:
 			if (IsWindowVisible(window)) ShowWindow(window, SW_HIDE);
 
-			SelectObject(memory, previousMemoryBitmap);
-			DeleteDC(memory);
+			SelectObject(memoryDeviceContext, previousMemoryBitmap);
+			DeleteDC(memoryDeviceContext);
 			DeleteObject(memoryBitmap);
-			memory = CreateCompatibleDC(screen);
+			memoryDeviceContext = CreateCompatibleDC(screenDeviceContext);
 
 			SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 			SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
 			screenRectangle = RectangleMake(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
 			// Create screen compatible bitmap and associate it with the memory device context
-			memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
-			HBITMAP previousMemoryBitmap = SelectObject(memory, memoryBitmap);
+			memoryBitmap = CreateCompatibleBitmap(screenDeviceContext, SCREEN_WIDTH, SCREEN_HEIGHT);
+			HBITMAP previousMemoryBitmap = SelectObject(memoryDeviceContext, memoryBitmap);
 
 			return 0;
 
@@ -625,9 +624,9 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_HOTKEY:
 			if (!IsWindowVisible(window)) {
 				selectionRectangle = (RECT){ 0 };
-				currentSelection = RectangleListInsertAfter(currentSelection, selectionRectangle);
+				lastSavedSelection = RectangleListInsertAfter(lastSavedSelection, selectionRectangle);
 				// Transfer color data from screen to memory
-				BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
+				BOOL transferred = BitBlt(memoryDeviceContext, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screenDeviceContext, 0, 0, SRCCOPY);
 				if (GetForegroundWindow() != window) SetForegroundWindow(window);
 				SetWindowPos(window, HWND_TOP, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SWP_SHOWWINDOW);
 				// BringWindowToTop(window);
@@ -638,7 +637,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			if (WindowOnShortcut(window, message, wParameter, lParameter) == 0) {
 				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
-				currentSelection = RectangleListAdd(currentSelection, selectionRectangle);
+				lastSavedSelection = RectangleListAdd(lastSavedSelection, selectionRectangle);
 				return 0;
 			}
 			return 1;
@@ -764,8 +763,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			selectionRectangle = RectangleNormalizeTruncate(selectionRectangle, screenRectangle);
 
 			// Track selection history in list
-			currentSelection = RectangleListAdd(currentSelection, selectionRectangle);
-			// assert(selections == RectangleListFirst(currentSelection));
+			lastSavedSelection = RectangleListAdd(lastSavedSelection, selectionRectangle);
+			// assert(selections == RectangleListFirst(lastSavedSelection));
 
 			// If selection is not visible when left click is released, show default cursor
 			if (!RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
@@ -794,14 +793,14 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			blend.SourceConstantAlpha = 128;
 			blend.AlphaFormat = AC_SRC_ALPHA;
 			BOOL blended = GdiAlphaBlend(scene, 0, 0, RectangleWidth(update), RectangleHeight(update),
-										 memory, update.left, update.top, RectangleWidth(update), RectangleHeight(update), blend);
+										 memoryDeviceContext, update.left, update.top, RectangleWidth(update), RectangleHeight(update), blend);
 
 			if (RectangleHasArea(displayRectangle)) {
 				// Display rectangle must be relative to the update region, not the client
 				BitBlt(scene, (displayRectangle.left - update.left), (displayRectangle.top - update.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
-					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
+					   memoryDeviceContext, displayRectangle.left, displayRectangle.top, SRCCOPY);
 
-				if (outlineSelection) {
+				if (showSelectionOutline) {
 					COLORREF black = RGB(0, 0, 0);
 					HPEN pen = CreatePen(PS_DOT, 1, black);
 					SelectObject(scene, pen);
@@ -829,7 +828,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_DESTROY:
 			// Free selection history
-			RectangleListFree(RectangleListFirst(currentSelection));
+			RectangleListFree(RectangleListFirst(lastSavedSelection));
 			PostQuitMessage(0);
 			return 0;
 
@@ -840,7 +839,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 void ConfigGetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, wchar_t *configVar) {
 	wchar_t keyBuffer[MAX_PATH];
-	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVar, NULL, keyBuffer, MAX_PATH, settingsPath);
+	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVar, NULL, keyBuffer, MAX_PATH, configPath);
 	CharUpperW(keyBuffer);
 
 	if (!charactersCopied) {
@@ -930,15 +929,15 @@ BOOL ConfigLoad(window) {
 
 	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LEN(shortcuts));
 
-	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"FILE_PATH", exeDirectory, fileDirectory, MAX_PATH, settingsPath);
-	if (!charactersCopied) wcscpy(fileDirectory, exeDirectory);
+	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"FILE_PATH", exeDirectory, screenshotDirectory, MAX_PATH, configPath);
+	if (!charactersCopied) wcscpy(screenshotDirectory, exeDirectory);
 
-	if (!DirectoryExists(fileDirectory)) {
+	if (!DirectoryExists(screenshotDirectory)) {
 		MessageBoxW(NULL, L"Save location could not be found. Check the FILE_PATH variable in your config.", NULL, MB_OK | MB_ICONERROR);
 		return FALSE;
 	}
 
-	GetPrivateProfileStringW(L"output", L"FILE_PREFIX", L"Screenshot_", filePrefix, MAX_PATH, settingsPath);
+	GetPrivateProfileStringW(L"output", L"FILE_PREFIX", L"Screenshot_", screenshotPrefix, MAX_PATH, configPath);
 
 	UnregisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE);
 	if (!RegisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE, ConfigShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
@@ -958,7 +957,7 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 		return 1;
 	}
 
-	if (!GetExeDirectory(exeDirectory) || !GetConfigPath(settingsPath)) {
+	if (!GetExeDirectory(exeDirectory) || !GetConfigPath(configPath)) {
 		MessageBoxW(NULL, L"Could not find config path or directory where executable is running.", NULL, MB_OK | MB_ICONERROR);
 		return 1;
 	}
@@ -969,12 +968,12 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 	// "By convention, the right and bottom edges of the rectangle are normally considered exclusive."
 	screenRectangle = RectangleMake(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-	screen = GetDC(SCREEN_HANDLE);
-	memory = CreateCompatibleDC(screen);
+	screenDeviceContext = GetDC(SCREEN_HANDLE);
+	memoryDeviceContext = CreateCompatibleDC(screenDeviceContext);
 
 	// Create screen compatible bitmap and associate it with the memory device context
-	memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
-	previousMemoryBitmap = SelectObject(memory, memoryBitmap);
+	memoryBitmap = CreateCompatibleBitmap(screenDeviceContext, SCREEN_WIDTH, SCREEN_HEIGHT);
+	previousMemoryBitmap = SelectObject(memoryDeviceContext, memoryBitmap);
 
 	WNDCLASS windowClass = { 0 };
 	windowClass.hInstance = appInstance;
@@ -1010,9 +1009,9 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 	}
 
 	// Clean up
-	ReleaseDC(SCREEN_HANDLE, screen);
-	SelectObject(memory, previousMemoryBitmap);
-	DeleteDC(memory);
+	ReleaseDC(SCREEN_HANDLE, screenDeviceContext);
+	SelectObject(memoryDeviceContext, previousMemoryBitmap);
+	DeleteDC(memoryDeviceContext);
 	DeleteObject(memoryBitmap);
 
 	DestroyAcceleratorTable(shortcutTable);
