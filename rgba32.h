@@ -1,5 +1,5 @@
-#ifndef PIXEL_COLOR_DATA_H
-#define PIXEL_COLOR_DATA_H
+#ifndef RGBA32_H
+#define RGBA32_H
 
 #include <stdint.h>
 
@@ -26,4 +26,4 @@ static uint32_t BGRA32toRGBA32(uint32_t value) {
 	return returnValue;
 }
 
-#endif // PIXEL_COLOR_DATA_H
+#endif // RGBA32_H

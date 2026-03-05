@@ -13,7 +13,7 @@
 #include "rectangle_list.h"
 #include "file_info.h"
 #include "aspect_ratio.h"
-#include "pixel_color_data.h"
+#include "rgba32.h"
 #include "position.h"
 
 #define VK_V 0x56
