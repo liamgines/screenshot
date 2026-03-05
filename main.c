@@ -563,7 +563,7 @@ AnchorBoxes FitBoxes(AnchorBoxes boxes, RECT fit) {
 	return boxes;
 }
 
-HCURSOR GetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
+HCURSOR GetCursorBasedOnPosition(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
 	// If selection is not visible, show default cursor
 	if (!RectangleHasArea(displayRectangle))													  return LoadCursor(NULL, IDC_ARROW);
 	else if (PtInRect(&boxes.topLeft, point) || PtInRect(&boxes.bottomRight, point))  return LoadCursor(NULL, IDC_SIZENWSE);
@@ -644,7 +644,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_SETCURSOR: {
 			// Update cursor based on position while left click is not held
 			SHORT leftClick = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
-			if (!leftClick) SetCursor(GetCursor(point, displayRectangle, boxes));
+			if (!leftClick) SetCursor(GetCursorBasedOnPosition(point, displayRectangle, boxes));
 			// If left click is held and selection is not visible, show a default resize icon
 			else if (leftClick && !RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
 			return TRUE;
