@@ -1,14 +1,15 @@
 // TODO: refactor, research dpi scaling, handle when selection history is out of memory, customizable selection key, ensure consistent resizing logic when rectangle is not normalized, gifs
 #define _CRT_SECURE_NO_WARNINGS
+#define STBIW_WINDOWS_UTF8
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 #include <windows.h>
 #include <assert.h>
 #include <windowsX.h>
 #include <shlwapi.h>	// https://stackoverflow.com/a/49674208/32242805
 #include <stdio.h>
 #include <stdint.h>
-#define STBIW_WINDOWS_UTF8
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
+#include <stdlib.h>
 #include "rectangle.h"
 #include "rectangle_list.h"
 #include "file_info.h"
@@ -22,7 +23,7 @@
 #define VK_B 0x42
 #define VK_GRAVE VK_OEM_3
 
-#define ARRAY_LENGTH(array) (sizeof(array) / sizeof(array[0]))
+#define ARRAY_LEN(array) (sizeof(array) / sizeof(array[0]))
 
 #define MIDPOINT(x, y) (((x) + (y)) / 2)
 
@@ -35,7 +36,7 @@
 
 #define SCREEN_HANDLE NULL
 #define SCREEN_AREA (SCREEN_WIDTH * SCREEN_HEIGHT)
-#define BOX_SIZE 6 * 4
+#define SELECTION_HITBOX_SIZE (6 * 4)
 // https://superuser.com/a/1915000
 #define MAX_SCREEN_WIDTH_LEN 6
 #define MAX_SCREEN_HEIGHT_LEN 6
@@ -55,8 +56,10 @@ static CRITICAL_SECTION criticalSection;
 static BOOL outlineSelection = FALSE;
 static wchar_t filePrefix[MAX_PATH];
 
-#define NUM_SHORTCUTS 13
+#define ID_HOTKEY_SCREEN_CAPTURE 0
+
 HACCEL shortcutTable = NULL;
+#define NUM_SHORTCUTS 13
 #define ID_CLOSE 40002
 #define ID_OUTLINE_SELECTION 40003
 #define ID_RELOAD_CONFIG 40004
@@ -70,7 +73,6 @@ HACCEL shortcutTable = NULL;
 #define ID_DOWNSCALE 40012
 #define ID_SAVE 40013
 #define ID_OPEN_CONFIG 40014
-#define HOTKEY_SCREEN_CAPTURE 40015
 
 #define SHIFT_STRING L"SHIFT"
 #define CTRL_STRING L"CTRL"
@@ -296,8 +298,8 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 			wchar_t selectionWidth[MAX_SCREEN_WIDTH_LEN] = { 0 };
 			wchar_t selectionHeight[MAX_SCREEN_HEIGHT_LEN] = { 0 };
-			swprintf(selectionWidth, ARRAY_LENGTH(selectionWidth), L"%d", RectangleWidth(selectionRectangle));
-			swprintf(selectionHeight, ARRAY_LENGTH(selectionHeight), L"%d", RectangleHeight(selectionRectangle));
+			swprintf(selectionWidth, ARRAY_LEN(selectionWidth), L"%d", RectangleWidth(selectionRectangle));
+			swprintf(selectionHeight, ARRAY_LEN(selectionHeight), L"%d", RectangleHeight(selectionRectangle));
 
 			int j = 0;
 			while (selectionWidth[j++]) {
@@ -330,7 +332,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			inputs[i++] = InputKeyMake(VK_RETURN, FALSE);
 			inputs[i++] = InputKeyMake(VK_RETURN, TRUE);
 
-			assert(i < ARRAY_LENGTH(inputs));
+			assert(i < ARRAY_LEN(inputs));
 			UINT sent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
 
 			return 0;
@@ -537,14 +539,14 @@ typedef struct {
 
 SelectionHitboxes SelectionHitboxesMake(SelectionPoints anchors) {
 	SelectionHitboxes boxes;
-	boxes.topLeft = SelectionHitboxMake(anchors.topLeft, BOX_SIZE);
-	boxes.topMid = SelectionHitboxMake(anchors.topMid, BOX_SIZE);
-	boxes.topRight = SelectionHitboxMake(anchors.topRight, BOX_SIZE);
-	boxes.midLeft = SelectionHitboxMake(anchors.midLeft, BOX_SIZE);
-	boxes.midRight = SelectionHitboxMake(anchors.midRight, BOX_SIZE);
-	boxes.bottomLeft = SelectionHitboxMake(anchors.bottomLeft, BOX_SIZE);
-	boxes.bottomMid = SelectionHitboxMake(anchors.bottomMid, BOX_SIZE);
-	boxes.bottomRight = SelectionHitboxMake(anchors.bottomRight, BOX_SIZE);
+	boxes.topLeft = SelectionHitboxMake(anchors.topLeft, SELECTION_HITBOX_SIZE);
+	boxes.topMid = SelectionHitboxMake(anchors.topMid, SELECTION_HITBOX_SIZE);
+	boxes.topRight = SelectionHitboxMake(anchors.topRight, SELECTION_HITBOX_SIZE);
+	boxes.midLeft = SelectionHitboxMake(anchors.midLeft, SELECTION_HITBOX_SIZE);
+	boxes.midRight = SelectionHitboxMake(anchors.midRight, SELECTION_HITBOX_SIZE);
+	boxes.bottomLeft = SelectionHitboxMake(anchors.bottomLeft, SELECTION_HITBOX_SIZE);
+	boxes.bottomMid = SelectionHitboxMake(anchors.bottomMid, SELECTION_HITBOX_SIZE);
+	boxes.bottomRight = SelectionHitboxMake(anchors.bottomRight, SELECTION_HITBOX_SIZE);
 	return boxes;
 }
 
@@ -634,7 +636,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_COMMAND:
 			if (WindowOnShortcut(window, message, wParameter, lParameter) == 0) {
-				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, BOX_SIZE / 2);
+				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 				currentSelection = RectangleListAdd(currentSelection, selectionRectangle);
 				return 0;
@@ -734,7 +736,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle = RectangleToSquare(selectionRectangle);
 			}
 
-			RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, BOX_SIZE / 2);
+			RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 			BOOL repaint = InvalidateRect(window, &update, TRUE);
 			return 0;
 		}
@@ -744,13 +746,13 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			if ((wParameter & MK_LBUTTON) && !drag) {
 				if (selectedXCorner) *selectedXCorner = point.x;
 				if (selectedYCorner) *selectedYCorner = point.y;
-				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, BOX_SIZE / 2);
+				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
 			else if ((wParameter & MK_LBUTTON) && drag) {
 				POINT difference = PositionSubtract(point, previousPosition);
 				selectionRectangle = RectangleTranslate(selectionRectangle, difference);
-				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, BOX_SIZE / 2);
+				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 				BOOL repaint = InvalidateRect(window, &update, TRUE);
 			}
 			previousPosition = point;
@@ -769,7 +771,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			if (!RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
 			drag = FALSE;
 
-			RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, BOX_SIZE / 2);
+			RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 			BOOL repaint = InvalidateRect(window, &update, TRUE);
 		}
 
@@ -924,9 +926,9 @@ BOOL ConfigLoad(window) {
 	ConfigGetShortcut(&shortcuts[11], FCONTROL, 'S', ID_SAVE, L"SAVE");
 	ConfigGetShortcut(&shortcuts[12], NULL, VK_GRAVE, ID_OPEN_CONFIG, L"OPEN_CONFIG");
 
-	assert(NUM_SHORTCUTS == ARRAY_LENGTH(shortcuts));
+	assert(NUM_SHORTCUTS == ARRAY_LEN(shortcuts));
 
-	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LENGTH(shortcuts));
+	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LEN(shortcuts));
 
 	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"FILE_PATH", exeDirectory, fileDirectory, MAX_PATH, settingsPath);
 	if (!charactersCopied) wcscpy(fileDirectory, exeDirectory);
@@ -938,8 +940,8 @@ BOOL ConfigLoad(window) {
 
 	GetPrivateProfileStringW(L"output", L"FILE_PREFIX", L"Screenshot_", filePrefix, MAX_PATH, settingsPath);
 
-	UnregisterHotKey(window, HOTKEY_SCREEN_CAPTURE);
-	if (!RegisterHotKey(window, HOTKEY_SCREEN_CAPTURE, ConfigShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
+	UnregisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE);
+	if (!RegisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE, ConfigShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
 		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
 		return FALSE;
 	}
