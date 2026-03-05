@@ -474,7 +474,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 	}
 }
 
-RECT GetBox(POINT p, const LONG size) {
+RECT SelectionHitbox(POINT p, const LONG size) {
 	RECT box = { .left = p.x - size/2, .top = p.y - size/2, .right = p.x + size/2, .bottom = p.y + size/2};
 	return box;
 }
@@ -490,10 +490,10 @@ typedef struct {
 	POINT bottomLeft;
 	POINT bottomMid;
 	POINT bottomRight;
-} Anchors;
+} SelectionPoints;
 
-Anchors GetAnchors(RECT r) {
-	Anchors anchors;
+SelectionPoints SelectionPointsMake(RECT r) {
+	SelectionPoints anchors;
 
 	anchors.topLeft.x = r.left;
 	anchors.topLeft.y = r.top;
@@ -533,22 +533,22 @@ typedef struct {
 	RECT bottomLeft;
 	RECT bottomMid;
 	RECT bottomRight;
-} AnchorBoxes;
+} SelectionHitboxes;
 
-AnchorBoxes GetAnchorBoxes(Anchors anchors) {
-	AnchorBoxes boxes;
-	boxes.topLeft = GetBox(anchors.topLeft, BOX_SIZE);
-	boxes.topMid = GetBox(anchors.topMid, BOX_SIZE);
-	boxes.topRight = GetBox(anchors.topRight, BOX_SIZE);
-	boxes.midLeft = GetBox(anchors.midLeft, BOX_SIZE);
-	boxes.midRight = GetBox(anchors.midRight, BOX_SIZE);
-	boxes.bottomLeft = GetBox(anchors.bottomLeft, BOX_SIZE);
-	boxes.bottomMid = GetBox(anchors.bottomMid, BOX_SIZE);
-	boxes.bottomRight = GetBox(anchors.bottomRight, BOX_SIZE);
+SelectionHitboxes SelectionHitboxesMake(SelectionPoints anchors) {
+	SelectionHitboxes boxes;
+	boxes.topLeft = SelectionHitbox(anchors.topLeft, BOX_SIZE);
+	boxes.topMid = SelectionHitbox(anchors.topMid, BOX_SIZE);
+	boxes.topRight = SelectionHitbox(anchors.topRight, BOX_SIZE);
+	boxes.midLeft = SelectionHitbox(anchors.midLeft, BOX_SIZE);
+	boxes.midRight = SelectionHitbox(anchors.midRight, BOX_SIZE);
+	boxes.bottomLeft = SelectionHitbox(anchors.bottomLeft, BOX_SIZE);
+	boxes.bottomMid = SelectionHitbox(anchors.bottomMid, BOX_SIZE);
+	boxes.bottomRight = SelectionHitbox(anchors.bottomRight, BOX_SIZE);
 	return boxes;
 }
 
-AnchorBoxes FitBoxes(AnchorBoxes boxes, RECT fit) {
+SelectionHitboxes SelectionHitboxesExtend(SelectionHitboxes boxes, RECT fit) {
 	boxes.topMid.left = fit.left;
 	boxes.topMid.right = fit.right;
 
@@ -563,7 +563,7 @@ AnchorBoxes FitBoxes(AnchorBoxes boxes, RECT fit) {
 	return boxes;
 }
 
-HCURSOR WindowGetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
+HCURSOR WindowGetCursor(POINT point, RECT displayRectangle, SelectionHitboxes boxes) {
 	// If selection is not visible, show default cursor
 	if (!RectangleHasArea(displayRectangle))													  return LoadCursor(NULL, IDC_ARROW);
 	else if (PtInRect(&boxes.topLeft, point) || PtInRect(&boxes.bottomRight, point))  return LoadCursor(NULL, IDC_SIZENWSE);
@@ -581,9 +581,9 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	static LONG *selectedYCorner = NULL;
 
 	RECT displayRectangle = RectangleNormalizeTruncate(selectionRectangle, screenRectangle);
-	Anchors anchors = GetAnchors(displayRectangle);
-	AnchorBoxes boxes = GetAnchorBoxes(anchors);
-	boxes = FitBoxes(boxes, displayRectangle);
+	SelectionPoints anchors = SelectionPointsMake(displayRectangle);
+	SelectionHitboxes boxes = SelectionHitboxesMake(anchors);
+	boxes = SelectionHitboxesExtend(boxes, displayRectangle);
 	static POINT point;
 	GetCursorPos(&point);
 
