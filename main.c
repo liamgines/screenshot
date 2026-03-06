@@ -62,9 +62,9 @@ static RectangleNode *lastSavedSelection = NULL;
 HACCEL shortcutTable = NULL;
 #define NUM_SHORTCUTS 13
 #define ID_CLOSE 40002
-#define ID_OUTLINE_SELECTION 40003
+#define ID_SELECTION_OUTLINE 40003
 #define ID_RELOAD_CONFIG 40004
-#define ID_OPEN_PAINT 40005
+#define ID_OPEN_IN_PAINT 40005
 #define ID_COPY 40006
 #define ID_DESELECT 40007
 #define ID_SELECT_ALL 40008
@@ -250,7 +250,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			ShowWindow(window, SW_HIDE);
 			return 0;
 
-		case ID_OUTLINE_SELECTION:
+		case ID_SELECTION_OUTLINE:
 			showSelectionOutline = !showSelectionOutline;
 			return 0;
 
@@ -262,7 +262,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 			return 0;
 
-		case ID_OPEN_PAINT:
+		case ID_OPEN_IN_PAINT:
 			if (CopySelectionToClipboard(window) != 0) return 0;
 
 			SHELLEXECUTEINFOW execInfo = { 0 };
@@ -912,9 +912,9 @@ BOOL ConfigLoad(HWND window) {
 
 	ACCEL shortcuts[NUM_SHORTCUTS];
 	ConfigGetShortcut(&shortcuts[0], NULL, VK_ESCAPE, ID_CLOSE, L"CLOSE");
-	ConfigGetShortcut(&shortcuts[1], NULL, 'F', ID_OUTLINE_SELECTION, L"OUTLINE_SELECTION");
+	ConfigGetShortcut(&shortcuts[1], NULL, 'F', ID_SELECTION_OUTLINE, L"SELECTION_OUTLINE");
 	ConfigGetShortcut(&shortcuts[2], NULL, 'R', ID_RELOAD_CONFIG, L"RELOAD_CONFIG");
-	ConfigGetShortcut(&shortcuts[3], FCONTROL, 'E', ID_OPEN_PAINT, L"OPEN_PAINT");
+	ConfigGetShortcut(&shortcuts[3], FCONTROL, 'E', ID_OPEN_IN_PAINT, L"OPEN_IN_PAINT");
 	ConfigGetShortcut(&shortcuts[4], FCONTROL, 'C', ID_COPY, L"COPY");
 	ConfigGetShortcut(&shortcuts[5], FCONTROL, 'W', ID_DESELECT, L"DESELECT");
 	ConfigGetShortcut(&shortcuts[6], FCONTROL, 'A', ID_SELECT_ALL, L"SELECT_ALL");
@@ -929,15 +929,15 @@ BOOL ConfigLoad(HWND window) {
 
 	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LEN(shortcuts));
 
-	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"FILE_PATH", exeDirectory, screenshotDirectory, MAX_PATH, configPath);
+	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"SCREENSHOT_DIRECTORY", exeDirectory, screenshotDirectory, MAX_PATH, configPath);
 	if (!charactersCopied) wcscpy(screenshotDirectory, exeDirectory);
 
 	if (!DirectoryExists(screenshotDirectory)) {
-		MessageBoxW(NULL, L"Save location could not be found. Check the FILE_PATH variable in your config.", NULL, MB_OK | MB_ICONERROR);
+		MessageBoxW(NULL, L"Save location could not be found. Check the SCREENSHOT_DIRECTORY variable in your config.", NULL, MB_OK | MB_ICONERROR);
 		return FALSE;
 	}
 
-	GetPrivateProfileStringW(L"output", L"FILE_PREFIX", L"Screenshot_", screenshotPrefix, MAX_PATH, configPath);
+	GetPrivateProfileStringW(L"output", L"SCREENSHOT_PREFIX", L"Screenshot_", screenshotPrefix, MAX_PATH, configPath);
 
 	UnregisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE);
 	if (!RegisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE, ConfigShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
