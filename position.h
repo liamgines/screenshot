@@ -3,10 +3,10 @@
 
 #include <windows.h>
 
-static POINT PositionSubtract(POINT p1, POINT p2) {
+static POINT PositionSubtract(POINT a, POINT b) {
 	POINT difference;
-	difference.x = p1.x - p2.x;
-	difference.y = p1.y - p2.y;
+	difference.x = a.x - b.x;
+	difference.y = a.y - b.y;
 	return difference;
 }
 
