@@ -6,40 +6,40 @@
 
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#define SWAP(TYPE, x, y) \
+#define SWAP(type, x, y) \
 do {					 \
-	TYPE temp;			 \
+	type temp;			 \
 	temp = x;			 \
 	x = y;				 \
 	y = temp;			 \
 } while (0)
 
-static int GCD(int a, int b) {
-	if (b == 0) return a;
+static int GCD(int x, int y) {
+	if (y == 0) return x;
 
-	return GCD(b, a % b);
+	return GCD(y, x % y);
 }
 
 static RECT RectangleMake(LONG left, LONG top, LONG right, LONG bottom) {
 	return (RECT) { .left = left, .top = top, .right = right, .bottom = bottom };
 }
 
-static LONG RectangleWidth(RECT r) {
-	return r.right - r.left;
+static LONG RectangleWidth(RECT a) {
+	return a.right - a.left;
 }
 
-static LONG RectangleHeight(RECT r) {
-	return r.bottom - r.top;
+static LONG RectangleHeight(RECT a) {
+	return a.bottom - a.top;
 }
 
-static LONG RectangleArea(RECT r) {
-	LONG w = r.right - r.left;
-	LONG h = r.bottom - r.top;
+static LONG RectangleArea(RECT a) {
+	LONG w = a.right - a.left;
+	LONG h = a.bottom - a.top;
 	return w * h;
 }
 
-static BOOL RectangleHasArea(RECT r) {
-	if (RectangleArea(r) != 0) return TRUE;
+static BOOL RectangleHasArea(RECT a) {
+	if (RectangleArea(a) != 0) return TRUE;
 	return FALSE;
 }
 
@@ -47,12 +47,12 @@ static BOOL RectangleEqual(RECT a, RECT b) {
 	return (a.left == b.left) && (a.top == b.top) && (a.right == b.right) && (a.bottom == b.bottom);
 }
 
-static RECT RectangleTranslate(RECT rectangle, POINT translation) {
-	rectangle.left += translation.x;
-	rectangle.top += translation.y;
-	rectangle.right += translation.x;
-	rectangle.bottom += translation.y;
-	return rectangle;
+static RECT RectangleTranslate(RECT a, POINT translation) {
+	a.left += translation.x;
+	a.top += translation.y;
+	a.right += translation.x;
+	a.bottom += translation.y;
+	return a;
 }
 
 static LONG *RectangleBottom(RECT *a) {
@@ -65,23 +65,23 @@ static LONG *RectangleRight(RECT *a) {
 	return &a->left;
 }
 
-static RECT RectangleNormalize(RECT rectangle) {
-	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
-	if (rectangle.bottom - rectangle.top < 0) SWAP(LONG, rectangle.bottom, rectangle.top);
-	return rectangle;
+static RECT RectangleNormalize(RECT a) {
+	if (a.right - a.left < 0) SWAP(LONG, a.right, a.left);
+	if (a.bottom - a.top < 0) SWAP(LONG, a.bottom, a.top);
+	return a;
 }
 
 // Expects a normalized rectangle
-static RECT RectangleTruncate(RECT r, RECT bounds) {
-	if (r.left < bounds.left) r.left = bounds.left;
-	if (r.top < bounds.top) r.top = bounds.top;
-	if (r.right > bounds.right) r.right = bounds.right;
-	if (r.bottom > bounds.bottom) r.bottom = bounds.bottom;
-	return r;
+static RECT RectangleTruncate(RECT a, RECT bounds) {
+	if (a.left < bounds.left) a.left = bounds.left;
+	if (a.top < bounds.top) a.top = bounds.top;
+	if (a.right > bounds.right) a.right = bounds.right;
+	if (a.bottom > bounds.bottom) a.bottom = bounds.bottom;
+	return a;
 }
 
-static RECT RectangleNormalizeTruncate(RECT r, RECT bounds) {
-	return RectangleTruncate(RectangleNormalize(r), bounds);
+static RECT RectangleNormalizeTruncate(RECT a, RECT bounds) {
+	return RectangleTruncate(RectangleNormalize(a), bounds);
 }
 
 static BOOL RectangleOutOfBounds(RECT a, RECT bounds) {
@@ -94,9 +94,9 @@ static RECT RectangleUpdateRegion(RECT before, RECT after, RECT bounds, int padd
 	after = RectangleNormalizeTruncate(after, bounds);
 	return (RECT) {
 		.left = MIN(before.left, after.left) - padding,
-			.top = MIN(before.top, after.top) - padding,
-			.right = MAX(before.right, after.right) + padding,
-			.bottom = MAX(before.bottom, after.bottom) + padding
+		.top = MIN(before.top, after.top) - padding,
+		.right = MAX(before.right, after.right) + padding,
+		.bottom = MAX(before.bottom, after.bottom) + padding
 	};
 }
 
@@ -104,9 +104,9 @@ static RECT RectangleToSquare(RECT a) {
 	LONG length = MAX(RectangleWidth(a), RectangleHeight(a));
 	return (RECT) {
 		.left = a.left,
-			.top = a.top,
-			.right = a.left + length,
-			.bottom = a.top + length
+		.top = a.top,
+		.right = a.left + length,
+		.bottom = a.top + length
 	};
 }
 
