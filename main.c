@@ -564,41 +564,41 @@ SelectionHitboxes SelectionHitboxesExtend(SelectionHitboxes boxes, RECT fit) {
 	return boxes;
 }
 
-HCURSOR WindowGetCursor(POINT point, RECT displayRectangle, SelectionHitboxes boxes) {
+HCURSOR WindowGetCursor(POINT cursorPos, RECT displayRectangle, SelectionHitboxes selectionHitboxes) {
 	// If selection is not visible, show default cursor
-	if (!RectangleHasArea(displayRectangle))													  return LoadCursor(NULL, IDC_ARROW);
-	else if (PtInRect(&boxes.topLeft, point) || PtInRect(&boxes.bottomRight, point))  return LoadCursor(NULL, IDC_SIZENWSE);
-	else if (PtInRect(&boxes.bottomLeft, point) || PtInRect(&boxes.topRight, point))  return LoadCursor(NULL, IDC_SIZENESW);
-	else if (PtInRect(&boxes.midLeft, point) || PtInRect(&boxes.midRight, point))	  return LoadCursor(NULL, IDC_SIZEWE);
-	else if (PtInRect(&boxes.topMid, point) || PtInRect(&boxes.bottomMid, point))	  return LoadCursor(NULL, IDC_SIZENS);
-	else if (PtInRect(&displayRectangle, point))									  return LoadCursor(NULL, IDC_SIZEALL);
+	if (!RectangleHasArea(displayRectangle))																			return LoadCursor(NULL, IDC_ARROW);
+	else if (PtInRect(&selectionHitboxes.topLeft, cursorPos) || PtInRect(&selectionHitboxes.bottomRight, cursorPos))	return LoadCursor(NULL, IDC_SIZENWSE);
+	else if (PtInRect(&selectionHitboxes.bottomLeft, cursorPos) || PtInRect(&selectionHitboxes.topRight, cursorPos))	return LoadCursor(NULL, IDC_SIZENESW);
+	else if (PtInRect(&selectionHitboxes.midLeft, cursorPos) || PtInRect(&selectionHitboxes.midRight, cursorPos))		return LoadCursor(NULL, IDC_SIZEWE);
+	else if (PtInRect(&selectionHitboxes.topMid, cursorPos) || PtInRect(&selectionHitboxes.bottomMid, cursorPos))		return LoadCursor(NULL, IDC_SIZENS);
+	else if (PtInRect(&displayRectangle, cursorPos))																	return LoadCursor(NULL, IDC_SIZEALL);
 	return LoadCursor(NULL, IDC_ARROW);
 }
 
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
-	static BOOL drag = FALSE;
-	static POINT previousPosition;
-	static LONG *selectedXCorner = NULL;
-	static LONG *selectedYCorner = NULL;
+	static BOOL dragSelection = FALSE;
+	static POINT previousCursorPos;
+	static LONG *selectedX = NULL;
+	static LONG *selectedY = NULL;
 
 	RECT displayRectangle = RectangleNormalizeTruncate(selectionRectangle, screenRectangle);
-	SelectionPoints anchors = SelectionPointsMake(displayRectangle);
-	SelectionHitboxes boxes = SelectionHitboxesMake(anchors);
-	boxes = SelectionHitboxesExtend(boxes, displayRectangle);
-	static POINT point;
-	GetCursorPos(&point);
+	SelectionPoints selectionPoints = SelectionPointsMake(displayRectangle);
+	SelectionHitboxes selectionHitboxes = SelectionHitboxesMake(selectionPoints);
+	selectionHitboxes = SelectionHitboxesExtend(selectionHitboxes, displayRectangle);
+	static POINT cursorPos;
+	GetCursorPos(&cursorPos);
 
 	switch (message) {
 		case WM_SHOWWINDOW: {
-			BOOL windowShown = wParameter;
-			if (!windowShown) showSelectionOutline = FALSE;
+			BOOL showWindow = wParameter;
+			if (!showWindow) showSelectionOutline = FALSE;
 			return DefWindowProc(window, message, wParameter, lParameter);
 		}
 
 
 		case WM_ACTIVATE: {
-			BOOL activationStatus = HIWORD(wParameter);
-			if (activationStatus == WA_INACTIVE) ShowWindow(window, SW_HIDE);
+			BOOL windowActivation = HIWORD(wParameter);
+			if (windowActivation == WA_INACTIVE) ShowWindow(window, SW_HIDE);
 			return DefWindowProc(window, message, wParameter, lParameter);
 		}
 
@@ -635,8 +635,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_COMMAND:
 			if (WindowOnShortcut(window, message, wParameter, lParameter) == 0) {
-				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
-				BOOL repaint = InvalidateRect(window, &update, TRUE);
+				RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
+				BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
 				lastSavedSelection = RectangleListAdd(lastSavedSelection, selectionRectangle);
 				return 0;
 			}
@@ -645,116 +645,116 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_SETCURSOR: {
 			// Update cursor based on position while left click is not held
 			SHORT leftClick = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
-			if (!leftClick) SetCursor(WindowGetCursor(point, displayRectangle, boxes));
+			if (!leftClick) SetCursor(WindowGetCursor(cursorPos, displayRectangle, selectionHitboxes));
 			// If left click is held and selection is not visible, show a default resize icon
 			else if (leftClick && !RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
 			return TRUE;
 		}
 
 		case WM_LBUTTONDOWN: {
-			BOOL cursorInSelection = PtInRect(&displayRectangle, point);
-			int squareLength = RectangleMinSideLength(selectionRectangle);
+			BOOL cursorInSelection = PtInRect(&displayRectangle, cursorPos);
+			int selectionSquareLength = RectangleMinSideLength(selectionRectangle);
 
-			if (PtInRect(&boxes.topLeft, point)) {
-				selectedXCorner = &selectionRectangle.left;
-				selectedYCorner = &selectionRectangle.top;
-
-				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
-					selectionRectangle.left = selectionRectangle.right - squareLength;
-					selectionRectangle.top = selectionRectangle.bottom - squareLength;
-				}
-			}
-			else if (PtInRect(&boxes.bottomRight, point)) {
-				selectedXCorner = &selectionRectangle.right;
-				selectedYCorner = &selectionRectangle.bottom;
+			if (PtInRect(&selectionHitboxes.topLeft, cursorPos)) {
+				selectedX = &selectionRectangle.left;
+				selectedY = &selectionRectangle.top;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
-					selectionRectangle.right = selectionRectangle.left + squareLength;
-					selectionRectangle.bottom = selectionRectangle.top + squareLength;
+					selectionRectangle.left = selectionRectangle.right - selectionSquareLength;
+					selectionRectangle.top = selectionRectangle.bottom - selectionSquareLength;
 				}
 			}
-			else if (PtInRect(&boxes.bottomLeft, point)) {
-				selectedXCorner = &selectionRectangle.left;
-				selectedYCorner = &selectionRectangle.bottom;
+			else if (PtInRect(&selectionHitboxes.bottomRight, cursorPos)) {
+				selectedX = &selectionRectangle.right;
+				selectedY = &selectionRectangle.bottom;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
-					selectionRectangle.left = selectionRectangle.right - squareLength;
-					selectionRectangle.bottom = selectionRectangle.top + squareLength;
+					selectionRectangle.right = selectionRectangle.left + selectionSquareLength;
+					selectionRectangle.bottom = selectionRectangle.top + selectionSquareLength;
 				}
 			}
-			else if (PtInRect(&boxes.topRight, point)) {
-				selectedXCorner = &selectionRectangle.right;
-				selectedYCorner = &selectionRectangle.top;
+			else if (PtInRect(&selectionHitboxes.bottomLeft, cursorPos)) {
+				selectedX = &selectionRectangle.left;
+				selectedY = &selectionRectangle.bottom;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
-					selectionRectangle.right = selectionRectangle.left + squareLength;
-					selectionRectangle.top = selectionRectangle.bottom - squareLength;
+					selectionRectangle.left = selectionRectangle.right - selectionSquareLength;
+					selectionRectangle.bottom = selectionRectangle.top + selectionSquareLength;
 				}
 			}
-			else if (PtInRect(&boxes.midLeft, point)) {
-				selectedXCorner = &selectionRectangle.left;
-				selectedYCorner = NULL;
+			else if (PtInRect(&selectionHitboxes.topRight, cursorPos)) {
+				selectedX = &selectionRectangle.right;
+				selectedY = &selectionRectangle.top;
+
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
+					selectionRectangle.right = selectionRectangle.left + selectionSquareLength;
+					selectionRectangle.top = selectionRectangle.bottom - selectionSquareLength;
+				}
+			}
+			else if (PtInRect(&selectionHitboxes.midLeft, cursorPos)) {
+				selectedX = &selectionRectangle.left;
+				selectedY = NULL;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.left = selectionRectangle.right - RectangleHeight(selectionRectangle);
 			}
-			else if (PtInRect(&boxes.midRight, point)) {
-				selectedXCorner = &selectionRectangle.right;
-				selectedYCorner = NULL;
+			else if (PtInRect(&selectionHitboxes.midRight, cursorPos)) {
+				selectedX = &selectionRectangle.right;
+				selectedY = NULL;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.right = selectionRectangle.left + RectangleHeight(selectionRectangle);
 			}
-			else if (PtInRect(&boxes.topMid, point)) {
-				selectedXCorner = NULL;
-				selectedYCorner = &selectionRectangle.top;
+			else if (PtInRect(&selectionHitboxes.topMid, cursorPos)) {
+				selectedX = NULL;
+				selectedY = &selectionRectangle.top;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.top = selectionRectangle.bottom - RectangleWidth(selectionRectangle);
 			}
-			else if (PtInRect(&boxes.bottomMid, point)) {
-				selectedXCorner = NULL;
-				selectedYCorner = &selectionRectangle.bottom;
+			else if (PtInRect(&selectionHitboxes.bottomMid, cursorPos)) {
+				selectedX = NULL;
+				selectedY = &selectionRectangle.bottom;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.bottom = selectionRectangle.top + RectangleWidth(selectionRectangle);
 			}
 
 			// Reset selection
 			else if (!cursorInSelection) {
-				selectionRectangle.left = point.x;
-				selectionRectangle.top = point.y;
+				selectionRectangle.left = cursorPos.x;
+				selectionRectangle.top = cursorPos.y;
 				selectionRectangle.right = selectionRectangle.left;
 				selectionRectangle.bottom = selectionRectangle.top;
 
-				selectedXCorner = &selectionRectangle.right;
-				selectedYCorner = &selectionRectangle.bottom;
+				selectedX = &selectionRectangle.right;
+				selectedY = &selectionRectangle.bottom;
 
 				// Ensure cursor is set on a new selection
 				SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
 			}
 			else if (cursorInSelection) {
-				drag = TRUE;
+				dragSelection = TRUE;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle = RectangleToSquare(selectionRectangle);
 			}
 
-			RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
-			BOOL repaint = InvalidateRect(window, &update, TRUE);
+			RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
+			BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
 			return 0;
 		}
 
 		case WM_MOUSEMOVE: {
 			// https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mousemove
-			if ((wParameter & MK_LBUTTON) && !drag) {
-				if (selectedXCorner) *selectedXCorner = point.x;
-				if (selectedYCorner) *selectedYCorner = point.y;
-				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
-				BOOL repaint = InvalidateRect(window, &update, TRUE);
+			if ((wParameter & MK_LBUTTON) && !dragSelection) {
+				if (selectedX) *selectedX = cursorPos.x;
+				if (selectedY) *selectedY = cursorPos.y;
+				RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
+				BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
 			}
-			else if ((wParameter & MK_LBUTTON) && drag) {
-				POINT difference = PositionSubtract(point, previousPosition);
-				selectionRectangle = RectangleTranslate(selectionRectangle, difference);
-				RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
-				BOOL repaint = InvalidateRect(window, &update, TRUE);
+			else if ((wParameter & MK_LBUTTON) && dragSelection) {
+				POINT translation = PositionSubtract(cursorPos, previousCursorPos);
+				selectionRectangle = RectangleTranslate(selectionRectangle, translation);
+				RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
+				BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
 			}
-			previousPosition = point;
+			previousCursorPos = cursorPos;
 			return 0;
 		}
 
@@ -768,59 +768,59 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 			// If selection is not visible when left click is released, show default cursor
 			if (!RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
-			drag = FALSE;
+			dragSelection = FALSE;
 
-			RECT update = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
-			BOOL repaint = InvalidateRect(window, &update, TRUE);
+			RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
+			BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
 		}
 
 
 		case WM_PAINT: {
 			PAINTSTRUCT paint;
-			HDC client = BeginPaint(window, &paint);
+			HDC clientDeviceContext = BeginPaint(window, &paint);
 
-			RECT update = paint.rcPaint;
-			RECT sceneCoords = { .left = 0, .top = 0, .right = RectangleWidth(update), .bottom = RectangleHeight(update) };
+			RECT updateRegion = paint.rcPaint;
+			RECT sceneCoords = { .left = 0, .top = 0, .right = RectangleWidth(updateRegion), .bottom = RectangleHeight(updateRegion) };
 
-			HDC scene = CreateCompatibleDC(client);
-			HBITMAP sceneBitmap = CreateCompatibleBitmap(client, RectangleWidth(update), RectangleHeight(update));
-			HBITMAP previousSceneBitmap = SelectObject(scene, sceneBitmap);
-			HBRUSH backgroundColor = CreateSolidBrush(RGB(0, 0, 0));
+			HDC sceneDeviceContext = CreateCompatibleDC(clientDeviceContext);
+			HBITMAP sceneBitmap = CreateCompatibleBitmap(clientDeviceContext, RectangleWidth(updateRegion), RectangleHeight(updateRegion));
+			HBITMAP previousSceneBitmap = SelectObject(sceneDeviceContext, sceneBitmap);
+			HBRUSH sceneBackgroundColor = CreateSolidBrush(RGB(0, 0, 0));
 
-			FillRect(scene, &sceneCoords, backgroundColor);
+			FillRect(sceneDeviceContext, &sceneCoords, sceneBackgroundColor);
 			BLENDFUNCTION blend = { 0 };
 			blend.BlendOp = AC_SRC_OVER;
 			blend.SourceConstantAlpha = 128;
 			blend.AlphaFormat = AC_SRC_ALPHA;
-			BOOL blended = GdiAlphaBlend(scene, 0, 0, RectangleWidth(update), RectangleHeight(update),
-										 memoryDeviceContext, update.left, update.top, RectangleWidth(update), RectangleHeight(update), blend);
+			BOOL blended = GdiAlphaBlend(sceneDeviceContext, 0, 0, RectangleWidth(updateRegion), RectangleHeight(updateRegion),
+										 memoryDeviceContext, updateRegion.left, updateRegion.top, RectangleWidth(updateRegion), RectangleHeight(updateRegion), blend);
 
 			if (RectangleHasArea(displayRectangle)) {
 				// Display rectangle must be relative to the update region, not the client
-				BitBlt(scene, (displayRectangle.left - update.left), (displayRectangle.top - update.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
+				BitBlt(sceneDeviceContext, (displayRectangle.left - updateRegion.left), (displayRectangle.top - updateRegion.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
 					   memoryDeviceContext, displayRectangle.left, displayRectangle.top, SRCCOPY);
 
 				if (showSelectionOutline) {
 					COLORREF black = RGB(0, 0, 0);
-					HPEN pen = CreatePen(PS_DOT, 1, black);
-					SelectObject(scene, pen);
+					HPEN dottedPen = CreatePen(PS_DOT, 1, black);
+					SelectObject(sceneDeviceContext, dottedPen);
 
-					MoveToEx(scene, displayRectangle.left - update.left, displayRectangle.top - update.top, NULL);
-					LineTo(scene, displayRectangle.right - update.left, displayRectangle.top - update.top);
-					LineTo(scene, displayRectangle.right - update.left, displayRectangle.bottom - update.top);
-					LineTo(scene, displayRectangle.left - update.left, displayRectangle.bottom - update.top);
-					LineTo(scene, displayRectangle.left - update.left, displayRectangle.top - update.top);
+					MoveToEx(sceneDeviceContext, displayRectangle.left - updateRegion.left, displayRectangle.top - updateRegion.top, NULL);
+					LineTo(sceneDeviceContext, displayRectangle.right - updateRegion.left, displayRectangle.top - updateRegion.top);
+					LineTo(sceneDeviceContext, displayRectangle.right - updateRegion.left, displayRectangle.bottom - updateRegion.top);
+					LineTo(sceneDeviceContext, displayRectangle.left - updateRegion.left, displayRectangle.bottom - updateRegion.top);
+					LineTo(sceneDeviceContext, displayRectangle.left - updateRegion.left, displayRectangle.top - updateRegion.top);
 
-					DeleteObject(pen);
+					DeleteObject(dottedPen);
 				}
 			}
 
-			BitBlt(client, update.left, update.top, RectangleWidth(update), RectangleHeight(update), scene, 0, 0, SRCCOPY);
+			BitBlt(clientDeviceContext, updateRegion.left, updateRegion.top, RectangleWidth(updateRegion), RectangleHeight(updateRegion), sceneDeviceContext, 0, 0, SRCCOPY);
 
 			// Clean up
-			DeleteObject(backgroundColor);
-			SelectObject(scene, previousSceneBitmap);
-			DeleteDC(scene);
+			DeleteObject(sceneBackgroundColor);
+			SelectObject(sceneDeviceContext, previousSceneBitmap);
+			DeleteDC(sceneDeviceContext);
 			DeleteObject(sceneBitmap);
 			EndPaint(window, &paint);
 			return 0;
