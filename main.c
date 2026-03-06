@@ -837,56 +837,56 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	}
 }
 
-void ConfigGetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, wchar_t *configVar) {
-	wchar_t keyBuffer[MAX_PATH];
-	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVar, NULL, keyBuffer, MAX_PATH, configPath);
-	CharUpperW(keyBuffer);
+void ConfigGetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD windowCommand, wchar_t *configVariable) {
+	wchar_t lineBuffer[MAX_PATH];
+	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVariable, NULL, lineBuffer, MAX_PATH, configPath);
+	CharUpperW(lineBuffer);
 
 	if (!charactersCopied) {
-		*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = cmd };
+		*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = windowCommand };
 		return;
 	}
 
-	*shortcut = (ACCEL) { .fVirt = FVIRTKEY, .key = 0, .cmd = cmd };
+	*shortcut = (ACCEL) { .fVirt = FVIRTKEY, .key = 0, .cmd = windowCommand };
 
 	int i = 0;
-	while (keyBuffer[i]) {
-		if (keyBuffer[i] == '+' || IsCharSpaceW(keyBuffer[i])) {
+	while (lineBuffer[i]) {
+		if (lineBuffer[i] == '+' || IsCharSpaceW(lineBuffer[i])) {
 			i += 1;
 		}
-		else if (wcsncmp(&keyBuffer[i], SHIFT_STRING, wcslen(SHIFT_STRING)) == 0) {
+		else if (wcsncmp(&lineBuffer[i], SHIFT_STRING, wcslen(SHIFT_STRING)) == 0) {
 			shortcut->fVirt |= FSHIFT;
 			i += wcslen(SHIFT_STRING);
 		}
-		else if (wcsncmp(&keyBuffer[i], CTRL_STRING, wcslen(CTRL_STRING)) == 0) {
+		else if (wcsncmp(&lineBuffer[i], CTRL_STRING, wcslen(CTRL_STRING)) == 0) {
 			shortcut->fVirt |= FCONTROL;
 			i += wcslen(CTRL_STRING);
 		}
-		else if (wcsncmp(&keyBuffer[i], ALT_STRING, wcslen(ALT_STRING)) == 0) {
+		else if (wcsncmp(&lineBuffer[i], ALT_STRING, wcslen(ALT_STRING)) == 0) {
 			shortcut->fVirt |= FALT;
 			i += wcslen(ALT_STRING);
 		}
-		else if (wcsncmp(&keyBuffer[i], HEX_PREFIX, wcslen(HEX_PREFIX)) == 0) {
+		else if (wcsncmp(&lineBuffer[i], HEX_PREFIX, wcslen(HEX_PREFIX)) == 0) {
 			int j = i + wcslen(HEX_PREFIX);
-			while (keyBuffer[j]) {
-				if ('0' <= keyBuffer[j] && keyBuffer[j] <= 'F') j += 1;
+			while (lineBuffer[j]) {
+				if ('0' <= lineBuffer[j] && lineBuffer[j] <= 'F') j += 1;
 				else break;
 			}
 			int hexSuffixLength = j - (i + wcslen(HEX_PREFIX));
 			if (hexSuffixLength != 2) {
-				*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = cmd };
+				*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = windowCommand };
 				MessageBoxW(NULL, L"Could not assign a key due to an invalid hex key code in the config. Code must be in range 0x01 to 0xFE. Default key was assigned instead.", L"Warning", MB_OK | MB_ICONWARNING);
 				return;
 			}
-			wchar_t hexadecimal[MAX_PATH];
-			wcsncpy(hexadecimal, &keyBuffer[i], wcslen(HEX_PREFIX) + hexSuffixLength + 1);
-			int integer = 0;
-			StrToIntExW(hexadecimal, STIF_SUPPORT_HEX, &integer);
-			shortcut->key = (WORD) integer;
+			wchar_t hexKeyCode[MAX_PATH];
+			wcsncpy(hexKeyCode, &lineBuffer[i], wcslen(HEX_PREFIX) + hexSuffixLength + 1);
+			int keyCode = 0;
+			StrToIntExW(hexKeyCode, STIF_SUPPORT_HEX, &keyCode);
+			shortcut->key = (WORD) keyCode;
 			i += wcslen(HEX_PREFIX) + hexSuffixLength;
 		}
 		else {
-			shortcut->key = keyBuffer[i];
+			shortcut->key = lineBuffer[i];
 			i += 1;
 		}
 	}
