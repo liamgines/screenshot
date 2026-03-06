@@ -476,93 +476,80 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 	}
 }
 
-RECT SelectionHitboxMake(POINT p, const LONG size) {
-	RECT box = { .left = p.x - size/2, .top = p.y - size/2, .right = p.x + size/2, .bottom = p.y + size/2};
-	return box;
+RECT SelectionHitboxMake(POINT a, const LONG size) {
+	RECT hitbox = { .left = a.x - size/2, .top = a.y - size/2, .right = a.x + size/2, .bottom = a.y + size/2 };
+	return hitbox;
 }
 
 typedef struct {
-	POINT topLeft;
-	POINT topMid;
-	POINT topRight;
-
-	POINT midLeft;
-	POINT midRight;
-
-	POINT bottomLeft;
-	POINT bottomMid;
-	POINT bottomRight;
+	POINT topLeft;		POINT topMid;		POINT topRight;
+	POINT midLeft;							POINT midRight;
+	POINT bottomLeft;	POINT bottomMid;	POINT bottomRight;
 } SelectionPoints;
 
-SelectionPoints SelectionPointsMake(RECT r) {
-	SelectionPoints anchors;
+SelectionPoints SelectionPointsMake(RECT a) {
+	SelectionPoints points;
 
-	anchors.topLeft.x = r.left;
-	anchors.topLeft.y = r.top;
+	points.topLeft.x = a.left;
+	points.topLeft.y = a.top;
 
-	anchors.topMid.x = MIDPOINT(r.left, r.right);
-	anchors.topMid.y = r.top;
+	points.topMid.x = MIDPOINT(a.left, a.right);
+	points.topMid.y = a.top;
 
-	anchors.topRight.x = r.right;
-	anchors.topRight.y = r.top;
+	points.topRight.x = a.right;
+	points.topRight.y = a.top;
 
-	anchors.midLeft.x = r.left;
-	anchors.midLeft.y = MIDPOINT(r.top, r.bottom);
+	points.midLeft.x = a.left;
+	points.midLeft.y = MIDPOINT(a.top, a.bottom);
 
-	anchors.midRight.x = r.right;
-	anchors.midRight.y = MIDPOINT(r.top, r.bottom);
+	points.midRight.x = a.right;
+	points.midRight.y = MIDPOINT(a.top, a.bottom);
 
-	anchors.bottomLeft.x = r.left;
-	anchors.bottomLeft.y = r.bottom;
+	points.bottomLeft.x = a.left;
+	points.bottomLeft.y = a.bottom;
 
-	anchors.bottomMid.x = MIDPOINT(r.left, r.right);
-	anchors.bottomMid.y = r.bottom;
+	points.bottomMid.x = MIDPOINT(a.left, a.right);
+	points.bottomMid.y = a.bottom;
 
-	anchors.bottomRight.x = r.right;
-	anchors.bottomRight.y = r.bottom;
+	points.bottomRight.x = a.right;
+	points.bottomRight.y = a.bottom;
 
-	return anchors;
+	return points;
 }
 
 typedef struct {
-	RECT topLeft;
-	RECT topMid;
-	RECT topRight;
-
-	RECT midLeft;
-	RECT midRight;
-
-	RECT bottomLeft;
-	RECT bottomMid;
-	RECT bottomRight;
+	RECT topLeft;		RECT topMid;		RECT topRight;
+	RECT midLeft;							RECT midRight;
+	RECT bottomLeft;	RECT bottomMid;		RECT bottomRight;
 } SelectionHitboxes;
 
-SelectionHitboxes SelectionHitboxesMake(SelectionPoints anchors) {
-	SelectionHitboxes boxes;
-	boxes.topLeft = SelectionHitboxMake(anchors.topLeft, SELECTION_HITBOX_SIZE);
-	boxes.topMid = SelectionHitboxMake(anchors.topMid, SELECTION_HITBOX_SIZE);
-	boxes.topRight = SelectionHitboxMake(anchors.topRight, SELECTION_HITBOX_SIZE);
-	boxes.midLeft = SelectionHitboxMake(anchors.midLeft, SELECTION_HITBOX_SIZE);
-	boxes.midRight = SelectionHitboxMake(anchors.midRight, SELECTION_HITBOX_SIZE);
-	boxes.bottomLeft = SelectionHitboxMake(anchors.bottomLeft, SELECTION_HITBOX_SIZE);
-	boxes.bottomMid = SelectionHitboxMake(anchors.bottomMid, SELECTION_HITBOX_SIZE);
-	boxes.bottomRight = SelectionHitboxMake(anchors.bottomRight, SELECTION_HITBOX_SIZE);
-	return boxes;
+SelectionHitboxes SelectionHitboxesMake(SelectionPoints points) {
+	SelectionHitboxes hitboxes;
+	hitboxes.topLeft = SelectionHitboxMake(points.topLeft, SELECTION_HITBOX_SIZE);
+	hitboxes.topMid = SelectionHitboxMake(points.topMid, SELECTION_HITBOX_SIZE);
+	hitboxes.topRight = SelectionHitboxMake(points.topRight, SELECTION_HITBOX_SIZE);
+	hitboxes.midLeft = SelectionHitboxMake(points.midLeft, SELECTION_HITBOX_SIZE);
+	hitboxes.midRight = SelectionHitboxMake(points.midRight, SELECTION_HITBOX_SIZE);
+	hitboxes.bottomLeft = SelectionHitboxMake(points.bottomLeft, SELECTION_HITBOX_SIZE);
+	hitboxes.bottomMid = SelectionHitboxMake(points.bottomMid, SELECTION_HITBOX_SIZE);
+	hitboxes.bottomRight = SelectionHitboxMake(points.bottomRight, SELECTION_HITBOX_SIZE);
+	return hitboxes;
 }
 
-SelectionHitboxes SelectionHitboxesExtend(SelectionHitboxes boxes, RECT fit) {
-	boxes.topMid.left = fit.left;
-	boxes.topMid.right = fit.right;
+SelectionHitboxes SelectionHitboxesExtend(SelectionHitboxes hitboxes, RECT bounds) {
+	hitboxes.topMid.left = bounds.left;
+	hitboxes.topMid.right = bounds.right;
 
-	boxes.bottomMid.left = fit.left;
-	boxes.bottomMid.right = fit.right;
+	hitboxes.bottomMid.left = bounds.left;
+	hitboxes.bottomMid.right = bounds.right;
 
-	boxes.midLeft.top = fit.top;
-	boxes.midLeft.bottom = fit.bottom;
+	hitboxes.midLeft.top = bounds.top;
+	hitboxes.midLeft.bottom = bounds.bottom;
 
-	boxes.midRight.top = fit.top;
-	boxes.midRight.bottom = fit.bottom;
-	return boxes;
+	hitboxes.midRight.top = bounds.top;
+	hitboxes.midRight.bottom = bounds.bottom;
+
+	return hitboxes;
 }
 
 HCURSOR WindowGetCursor(POINT cursorPos, RECT displayRectangle, SelectionHitboxes selectionHitboxes) {
