@@ -1,14 +1,21 @@
-// TODO: refactor, handle when selection history is out of memory, customizable selection key, ensure consistent resizing logic when rectangle is not normalized, gifs
+// TODO: refactor, research dpi scaling, handle when selection history is out of memory, customizable selection key, ensure consistent resizing logic when rectangle is not normalized, gifs
 #define _CRT_SECURE_NO_WARNINGS
+#define STBIW_WINDOWS_UTF8
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 #include <windows.h>
 #include <assert.h>
 #include <windowsX.h>
 #include <shlwapi.h>	// https://stackoverflow.com/a/49674208/32242805
 #include <stdio.h>
 #include <stdint.h>
-#define STBIW_WINDOWS_UTF8
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
+#include <stdlib.h>
+#include "rectangle.h"
+#include "rectangle_list.h"
+#include "file_info.h"
+#include "aspect_ratio.h"
+#include "rgba32.h"
+#include "position.h"
 
 #define VK_V 0x56
 #define VK_E 0x45
@@ -16,18 +23,7 @@
 #define VK_B 0x42
 #define VK_GRAVE VK_OEM_3
 
-#define ARRAY_LENGTH(array) (sizeof(array) / sizeof(array[0]))
-
-#define SWAP(TYPE, x, y) \
-do {					 \
-	TYPE temp;			 \
-	temp = x;			 \
-	x = y;				 \
-	y = temp;			 \
-} while (0)
-
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+#define ARRAY_LEN(array) (sizeof(array) / sizeof(array[0]))
 
 #define MIDPOINT(x, y) (((x) + (y)) / 2)
 
@@ -40,7 +36,7 @@ do {					 \
 
 #define SCREEN_HANDLE NULL
 #define SCREEN_AREA (SCREEN_WIDTH * SCREEN_HEIGHT)
-#define BOX_SIZE 6 * 4
+#define SELECTION_HITBOX_SIZE (6 * 4)
 // https://superuser.com/a/1915000
 #define MAX_SCREEN_WIDTH_LEN 6
 #define MAX_SCREEN_HEIGHT_LEN 6
@@ -49,23 +45,26 @@ static int SCREEN_WIDTH = 0;
 static int SCREEN_HEIGHT = 0;
 static RECT screenRectangle = { 0 };
 static RECT selectionRectangle = { 0 };
-static HDC screen;
-static HDC memory;
+static HDC screenDeviceContext;
+static HDC memoryDeviceContext;
 static HBITMAP memoryBitmap;
 static HBITMAP previousMemoryBitmap;
-static wchar_t fileDirectory[MAX_PATH];
+static wchar_t screenshotDirectory[MAX_PATH];
 static wchar_t exeDirectory[MAX_PATH];
-static wchar_t settingsPath[MAX_PATH];
+static wchar_t configPath[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
-static BOOL outlineSelection = FALSE;
-static wchar_t filePrefix[MAX_PATH];
+static BOOL showSelectionOutline = FALSE;
+static wchar_t screenshotPrefix[MAX_PATH];
+static RectangleNode *lastSavedSelection = NULL;
 
-#define NUM_SHORTCUTS 13
+#define ID_HOTKEY_SCREEN_CAPTURE 0
+
 HACCEL shortcutTable = NULL;
+#define NUM_SHORTCUTS 13
 #define ID_CLOSE 40002
-#define ID_OUTLINE_SELECTION 40003
+#define ID_SELECTION_OUTLINE 40003
 #define ID_RELOAD_CONFIG 40004
-#define ID_OPEN_PAINT 40005
+#define ID_OPEN_IN_PAINT 40005
 #define ID_COPY 40006
 #define ID_DESELECT 40007
 #define ID_SELECT_ALL 40008
@@ -75,104 +74,18 @@ HACCEL shortcutTable = NULL;
 #define ID_DOWNSCALE 40012
 #define ID_SAVE 40013
 #define ID_OPEN_CONFIG 40014
-#define HOTKEY_SCREEN_CAPTURE 40015
 
-#define CONFIG_FILE L"screenshot.ini"
 #define SHIFT_STRING L"SHIFT"
 #define CTRL_STRING L"CTRL"
 #define ALT_STRING L"ALT"
 #define HEX_PREFIX L"0X"
-
-RECT GetNormalizedRectangle(RECT rectangle) {
-	if (rectangle.right - rectangle.left < 0) SWAP(LONG, rectangle.right, rectangle.left);
-	if (rectangle.bottom - rectangle.top < 0) SWAP(LONG, rectangle.bottom, rectangle.top);
-	return rectangle;
-}
-
-// Expects a normalized rectangle
-RECT GetTruncatedRectangle(RECT r) {
-	if (r.left < 0) r.left = 0;
-	if (r.top < 0) r.top = 0;
-	if (r.right > SCREEN_WIDTH) r.right = SCREEN_WIDTH;
-	if (r.bottom > SCREEN_HEIGHT) r.bottom = SCREEN_HEIGHT;
-	return r;
-}
-
-RECT NormalizeAndTruncate(RECT r) {
-	return GetTruncatedRectangle(GetNormalizedRectangle(r));
-}
-
-POINT GetPoint(LPARAM lParameter) {
-	POINT point = { .x = GET_X_LPARAM(lParameter), .y = GET_Y_LPARAM(lParameter) };
-	return point;
-}
-
-POINT GetDifference(POINT p1, POINT p2) {
-	POINT difference;
-	difference.x = p1.x - p2.x;
-	difference.y = p1.y - p2.y;
-	return difference;
-}
-
-RECT TranslateRectangle(RECT rectangle, POINT translation) {
-	rectangle.left += translation.x;
-	rectangle.top += translation.y;
-	rectangle.right += translation.x;
-	rectangle.bottom += translation.y;
-	return rectangle;
-}
-
-LONG GetWidth(RECT r) {
-	return r.right - r.left;
-}
-
-LONG GetHeight(RECT r) {
-	return r.bottom - r.top;
-}
-
-#pragma pack(push, 1)
-typedef struct {
-	uint8_t blue;
-	uint8_t green;
-	uint8_t red;
-	uint8_t alpha;
-} BGRA32;
-#pragma pack(pop)
-
-#pragma pack(push, 1)
-typedef struct {
-	uint8_t red;
-	uint8_t green;
-	uint8_t blue;
-	uint8_t alpha;
-} RGBA32;
-#pragma pack(pop)
-
-uint32_t BGRAtoRGBA(uint32_t value) {
-	BGRA32 bgra = *((BGRA32 *) &value);
-	RGBA32 rgba = { .red = bgra.red, .green = bgra.green, .blue = bgra.blue, .alpha =  bgra.alpha };
-	uint32_t returnValue = *((uint32_t*) &rgba);
-	return returnValue;
-}
-
-// https://stackoverflow.com/a/6218957
-BOOL FileExists(LPCWSTR path) {
-	DWORD attributes = GetFileAttributes(path);
-	return attributes != INVALID_FILE_ATTRIBUTES;
-}
-
-// https://stackoverflow.com/a/6218445/32242805
-BOOL DirectoryExists(LPCWSTR path) {
-	DWORD attributes = GetFileAttributes(path);
-	return (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
-}
 
 typedef struct {
 	int selectionArea;
 	RECT selectionRectangle;
 	uint32_t *screenPixels;
 	int screenWidth;
-	wchar_t *fileDirectory;
+	wchar_t *screenshotDirectory;
 	int selectionWidth;
 	int selectionHeight;
 } SaveScreenshotParameter;
@@ -181,45 +94,45 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	SaveScreenshotParameter args = *((SaveScreenshotParameter *) parameter);
 
 	uint32_t* selectionPixels = malloc(sizeof(uint32_t) * args.selectionArea);
-	if (!selectionPixels) return FreeSaveScreenshot(selectionPixels, args.screenPixels, args.fileDirectory, parameter, TRUE);
+	if (!selectionPixels) return SaveScreenshotFree(selectionPixels, args.screenPixels, args.screenshotDirectory, parameter, TRUE);
 
 	int i = 0;
 	for (int y = args.selectionRectangle.top; y < args.selectionRectangle.bottom; y++) {
 		for (int x = args.selectionRectangle.left; x < args.selectionRectangle.right; x++) {
-			selectionPixels[i] = BGRAtoRGBA(args.screenPixels[(y * args.screenWidth) + x]);
+			selectionPixels[i] = BGRA32toRGBA32(args.screenPixels[(y * args.screenWidth) + x]);
 			i += 1;
 		}
 	}
 
 	EnterCriticalSection(&criticalSection);
 
-	wchar_t filePath[MAX_PATH + 1 + 1] = L"";
-	wchar_t fileName[MAX_PATH + 1 + 1] = L"";
+	wchar_t screenshotPath[MAX_PATH + 1 + 1] = L"";
+	wchar_t screenshotName[MAX_PATH + 1 + 1] = L"";
 	int n = 1;
 	do {
-		swprintf(fileName, MAX_PATH + 1 + 1, L"%s%d.png", filePrefix, n++);
+		swprintf(screenshotName, MAX_PATH + 1 + 1, L"%s%d.png", screenshotPrefix, n++);
 
-		PathCombine(filePath, args.fileDirectory, fileName);
-		if (wcslen(filePath) > MAX_PATH) {
+		PathCombine(screenshotPath, args.screenshotDirectory, screenshotName);
+		if (wcslen(screenshotPath) > MAX_PATH) {
 			// TODO: Double check
 			free(selectionPixels);
 			free(args.screenPixels);
-			free(args.fileDirectory);
+			free(args.screenshotDirectory);
 			free(parameter);
 
 			return 1;
 		}
-	} while (FileExists(filePath));
+	} while (FileOrDirectoryExists(screenshotPath));
 
-	char outputLocation[MAX_PATH + 1] = "";
-	stbiw_convert_wchar_to_utf8(outputLocation, MAX_PATH + 1, filePath);
-	int imageWritten = stbi_write_png(outputLocation, args.selectionWidth, args.selectionHeight,
+	char convertedScreenshotPath[MAX_PATH + 1] = "";
+	stbiw_convert_wchar_to_utf8(convertedScreenshotPath, MAX_PATH + 1, screenshotPath);
+	int imageWritten = stbi_write_png(convertedScreenshotPath, args.selectionWidth, args.selectionHeight,
 		4, selectionPixels, args.selectionWidth * sizeof(uint32_t));
 
 	// TODO: Double check
 	free(selectionPixels);
 	free(args.screenPixels);
-	free(args.fileDirectory);
+	free(args.screenshotDirectory);
 	free(parameter);
 
 	LeaveCriticalSection(&criticalSection);
@@ -227,7 +140,7 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	return 0;
 }
 
-BOOL CopyToClipboard(HWND window, char *data, int size, UINT format) {
+BOOL CopyDataToClipboard(HWND window, char *data, int size, UINT format) {
 	// https://stackoverflow.com/a/72282181/32242805
 	HGLOBAL allocatedMemoryObject = GlobalAlloc(GMEM_MOVEABLE, size);
 	if (!allocatedMemoryObject)
@@ -250,9 +163,9 @@ BOOL CopyToClipboard(HWND window, char *data, int size, UINT format) {
 }
 
 LRESULT CopySelectionToClipboard(HWND window) {
-	selectionRectangle = NormalizeAndTruncate(selectionRectangle);
-	const int SELECTION_WIDTH = GetWidth(selectionRectangle);
-	const int SELECTION_HEIGHT = GetHeight(selectionRectangle);
+	selectionRectangle = RectangleNormalizeTruncate(selectionRectangle, screenRectangle);
+	const int SELECTION_WIDTH = RectangleWidth(selectionRectangle);
+	const int SELECTION_HEIGHT = RectangleHeight(selectionRectangle);
 	const int SELECTION_AREA = SELECTION_WIDTH * SELECTION_HEIGHT;
 
 	if (!SELECTION_AREA) return 1;
@@ -269,12 +182,12 @@ LRESULT CopySelectionToClipboard(HWND window) {
 	BITMAPINFO info = { 0 };
 	info.bmiHeader = header;
 
-	HDC copy = CreateCompatibleDC(memory);
-	HBITMAP copyBitmap = CreateCompatibleBitmap(memory, SELECTION_WIDTH, SELECTION_HEIGHT);
-	HBITMAP previousCopyBitmap = SelectObject(copy, copyBitmap);
+	HDC copyDeviceContext = CreateCompatibleDC(memoryDeviceContext);
+	HBITMAP copyBitmap = CreateCompatibleBitmap(memoryDeviceContext, SELECTION_WIDTH, SELECTION_HEIGHT);
+	HBITMAP previousCopyBitmap = SelectObject(copyDeviceContext, copyBitmap);
 
-	BitBlt(copy, 0, 0, SELECTION_WIDTH, SELECTION_HEIGHT,
-		memory, selectionRectangle.left, selectionRectangle.top, SRCCOPY);
+	BitBlt(copyDeviceContext, 0, 0, SELECTION_WIDTH, SELECTION_HEIGHT,
+		memoryDeviceContext, selectionRectangle.left, selectionRectangle.top, SRCCOPY);
 
 	int headerAndPixelsSize = sizeof(header) + (sizeof(uint32_t) * SELECTION_AREA);
 	char *headerAndPixels = malloc(headerAndPixelsSize);
@@ -286,21 +199,21 @@ LRESULT CopySelectionToClipboard(HWND window) {
 		uint32_t *selectionPixels = (uint32_t *)(headerAndPixels + sizeof(header));
 
 		*headerPart = header;
-		int scanLinesCopied = GetDIBits(copy, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
+		int scanLinesCopied = GetDIBits(copyDeviceContext, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
 
-		CopyToClipboard(window, headerAndPixels, headerAndPixelsSize, CF_DIB);
+		CopyDataToClipboard(window, headerAndPixels, headerAndPixelsSize, CF_DIB);
 	}
 
 	// Clean up
 	free(headerAndPixels);
-	SelectObject(copy, previousCopyBitmap);
-	DeleteDC(copy);
+	SelectObject(copyDeviceContext, previousCopyBitmap);
+	DeleteDC(copyDeviceContext);
 	DeleteObject(copyBitmap);
 
 	return 0;
 }
 
-INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
+INPUT InputKeyMake(WORD virtualKeyCode, BOOL keyUp) {
 	INPUT input = { 0 };
 	input.type = INPUT_KEYBOARD;
 	input.ki.wVk = virtualKeyCode;
@@ -308,136 +221,10 @@ INPUT KeyInput(WORD virtualKeyCode, BOOL keyUp) {
 	return input;
 }
 
-RECT RectangleToSquare(RECT a) {
-	LONG length = MAX(GetWidth(a), GetHeight(a));
-	return (RECT) {
-		.left = a.left,
-		.top = a.top,
-		.right = a.left + length,
-		.bottom = a.top + length
-	};
-}
-
-typedef struct Selections {
-	RECT data;
-	struct Selections *prev;
-	struct Selections *next;
-} Selections;
-
-void SelectionsFree(Selections *xs) {
-	if (xs) {
-		Selections *next = xs->next;
-		free(xs);
-		SelectionsFree(next);
-	}
-}
-
-Selections *SelectionsAdd(Selections *prev, RECT data) {
-	// Prevent duplicate from being added
-	if (prev && RectangleEqual(prev->data, data)) return prev;
-
-	// TODO: Remove first node and add try adding again if out of memory
-	Selections *selection = malloc(sizeof(Selections));
-	if (!selection) return prev;
-
-	selection->data = data;
-	selection->prev = prev;
-	selection->next = NULL;
-
-	if (prev) {
-		SelectionsFree(prev->next);
-		prev->next = selection;
-	}
-
-	return selection;
-}
-
-Selections *SelectionsInsertAfter(Selections *prev, RECT data) {
-	if (prev && RectangleEqual(prev->data, data)) return prev;
-
-	// TODO: Remove first node and try inserting again if out of memory
-	Selections *selection = malloc(sizeof(Selections));
-	if (!selection) return prev;
-
-	selection->data = data;
-	selection->prev = prev;
-	selection->next = NULL;
-
-	if (prev) {
-		selection->next = prev->next;
-		prev->next = selection;
-	}
-
-	return selection;
-}
-
-Selections *SelectionsUndo(Selections *prev) {
-	if (!prev || !prev->prev || HasArea(prev->data)) return prev;
-	return SelectionsUndo(prev->prev);
-}
-
-Selections *SelectionsRedo(Selections *next) {
-	if (!next || !next->next || HasArea(next->data)) return next;
-	return SelectionsRedo(next->next);
-}
-
-Selections *SelectionsFirst(Selections *current) {
-	if (!current || !current->prev) return current;
-	return SelectionsFirst(current->prev);
-}
-
-static Selections *currentSelection = NULL;
-
-int GCD(int a, int b) {
-	if (b == 0) return a;
-
-	return GCD(b, a % b);
-}
-
-SIZE RectangleAspectRatio(RECT a) {
-	int w = GetWidth(a);
-	int h = GetHeight(a);
-	int gcd = GCD(w, h);
-
-	SIZE aspectRatio = { 0 };
-	if (gcd) {
-		aspectRatio.cx = abs(w / gcd);
-		aspectRatio.cy = abs(h / gcd);
-	}
-	return aspectRatio;
-}
-
-BOOL RectangleEqual(RECT a, RECT b) {
-	return (a.left == b.left) && (a.top == b.top) && (a.right == b.right) && (a.bottom == b.bottom);
-}
-
-BOOL RectangleOutOfBounds(RECT a) {
-	a = GetNormalizedRectangle(a);
-	return !RectangleEqual(a, GetTruncatedRectangle(a));
-}
-
-BOOL AspectRatioEqual(SIZE a, SIZE b) {
-	return (a.cx == b.cx && a.cy == b.cy);
-}
-
-BOOL AspectRatioValid(SIZE a) {
-	return (a.cx > 0) && (a.cy > 0);
-}
-
-LONG *RectangleBottom(RECT *a) {
-	if (a->bottom >= a->top) return &a->bottom;
-	return &a->top;
-}
-
-LONG *RectangleRight(RECT *a) {
-	if (a->right >= a->left) return &a->right;
-	return &a->left;
-}
-
-int FreeSaveScreenshot(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_t *fileDirectory, SaveScreenshotParameter *parameter, BOOL error) {
+int SaveScreenshotFree(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_t *screenshotDirectory, SaveScreenshotParameter *parameter, BOOL error) {
 	free(selectionPixels);
 	free(screenPixels);
-	free(fileDirectory);
+	free(screenshotDirectory);
 	free(parameter);
 
 	if (error) MessageBoxW(NULL, L"Screenshot could not be saved.", NULL, MB_OK | MB_ICONERROR);
@@ -445,11 +232,11 @@ int FreeSaveScreenshot(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_
 	return 0;
 }
 
-int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
-	static SIZE prevAspectRatio = { 0 };
-	if (!AspectRatioValid(prevAspectRatio)) {
-		prevAspectRatio.cx = 1;
-		prevAspectRatio.cy = 1;
+int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
+	static SIZE previousAspectRatio = { 0 };
+	if (!AspectRatioIsPositive(previousAspectRatio)) {
+		previousAspectRatio.cx = 1;
+		previousAspectRatio.cy = 1;
 	}
 
 	SIZE aspectRatio = RectangleAspectRatio(selectionRectangle);
@@ -457,25 +244,25 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 	LONG *selectionRight = RectangleRight(&selectionRectangle);
 	LONG *selectionBottom = RectangleBottom(&selectionRectangle);
 
-	WORD command = LOWORD(wParameter);
-	switch (command) {
+	WORD windowCommand = LOWORD(wParameter);
+	switch (windowCommand) {
 		case ID_CLOSE:
 			ShowWindow(window, SW_HIDE);
 			return 0;
 
-		case ID_OUTLINE_SELECTION:
-			outlineSelection = !outlineSelection;
+		case ID_SELECTION_OUTLINE:
+			showSelectionOutline = !showSelectionOutline;
 			return 0;
 
 		case ID_RELOAD_CONFIG:
-			if (!LoadConfig(window)) {
+			if (!ConfigLoad(window)) {
 				DestroyWindow(window);
 				return 1;
 			}
 
 			return 0;
 
-		case ID_OPEN_PAINT:
+		case ID_OPEN_IN_PAINT:
 			if (CopySelectionToClipboard(window) != 0) return 0;
 
 			SHELLEXECUTEINFOW execInfo = { 0 };
@@ -498,54 +285,54 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			ZeroMemory(inputs, sizeof(inputs));
 
 			int i = 0;
-			inputs[i++] = KeyInput(VK_CONTROL, FALSE);
-			inputs[i++] = KeyInput(VK_V, FALSE);
-			inputs[i++] = KeyInput(VK_V, TRUE);
-			inputs[i++] = KeyInput(VK_CONTROL, TRUE);
+			inputs[i++] = InputKeyMake(VK_CONTROL, FALSE);
+			inputs[i++] = InputKeyMake(VK_V, FALSE);
+			inputs[i++] = InputKeyMake(VK_V, TRUE);
+			inputs[i++] = InputKeyMake(VK_CONTROL, TRUE);
 
-			inputs[i++] = KeyInput(VK_CONTROL, FALSE);
-			inputs[i++] = KeyInput(VK_E, FALSE);
-			inputs[i++] = KeyInput(VK_E, TRUE);
-			inputs[i++] = KeyInput(VK_CONTROL, TRUE);
+			inputs[i++] = InputKeyMake(VK_CONTROL, FALSE);
+			inputs[i++] = InputKeyMake(VK_E, FALSE);
+			inputs[i++] = InputKeyMake(VK_E, TRUE);
+			inputs[i++] = InputKeyMake(VK_CONTROL, TRUE);
 
 			wchar_t selectionWidth[MAX_SCREEN_WIDTH_LEN] = { 0 };
 			wchar_t selectionHeight[MAX_SCREEN_HEIGHT_LEN] = { 0 };
-			swprintf(selectionWidth, ARRAY_LENGTH(selectionWidth), L"%d", GetWidth(selectionRectangle));
-			swprintf(selectionHeight, ARRAY_LENGTH(selectionHeight), L"%d", GetHeight(selectionRectangle));
+			swprintf(selectionWidth, ARRAY_LEN(selectionWidth), L"%d", RectangleWidth(selectionRectangle));
+			swprintf(selectionHeight, ARRAY_LEN(selectionHeight), L"%d", RectangleHeight(selectionRectangle));
 
 			int j = 0;
 			while (selectionWidth[j++]) {
-				WORD numberKeyCode = selectionWidth[j - 1];
-				inputs[i++] = KeyInput(numberKeyCode, FALSE);
-				inputs[i++] = KeyInput(numberKeyCode, TRUE);
+				WORD keyCode = selectionWidth[j - 1];
+				inputs[i++] = InputKeyMake(keyCode, FALSE);
+				inputs[i++] = InputKeyMake(keyCode, TRUE);
 			}
 
-			inputs[i++] = KeyInput(VK_TAB, FALSE);
-			inputs[i++] = KeyInput(VK_TAB, TRUE);
+			inputs[i++] = InputKeyMake(VK_TAB, FALSE);
+			inputs[i++] = InputKeyMake(VK_TAB, TRUE);
 
 			j = 0;
 			while (selectionHeight[j++]) {
-				WORD numberKeyCode = selectionHeight[j - 1];
-				inputs[i++] = KeyInput(numberKeyCode, FALSE);
-				inputs[i++] = KeyInput(numberKeyCode, TRUE);
+				WORD keyCode = selectionHeight[j - 1];
+				inputs[i++] = InputKeyMake(keyCode, FALSE);
+				inputs[i++] = InputKeyMake(keyCode, TRUE);
 			}
 
-			inputs[i++] = KeyInput(VK_RETURN, FALSE);
-			inputs[i++] = KeyInput(VK_RETURN, TRUE);
+			inputs[i++] = InputKeyMake(VK_RETURN, FALSE);
+			inputs[i++] = InputKeyMake(VK_RETURN, TRUE);
 
-			inputs[i++] = KeyInput(VK_MENU, FALSE);
-			inputs[i++] = KeyInput(VK_H, FALSE);
-			inputs[i++] = KeyInput(VK_H, TRUE);
-			inputs[i++] = KeyInput(VK_MENU, TRUE);
+			inputs[i++] = InputKeyMake(VK_MENU, FALSE);
+			inputs[i++] = InputKeyMake(VK_H, FALSE);
+			inputs[i++] = InputKeyMake(VK_H, TRUE);
+			inputs[i++] = InputKeyMake(VK_MENU, TRUE);
 
-			inputs[i++] = KeyInput(VK_B, FALSE);
-			inputs[i++] = KeyInput(VK_B, TRUE);
+			inputs[i++] = InputKeyMake(VK_B, FALSE);
+			inputs[i++] = InputKeyMake(VK_B, TRUE);
 
-			inputs[i++] = KeyInput(VK_RETURN, FALSE);
-			inputs[i++] = KeyInput(VK_RETURN, TRUE);
+			inputs[i++] = InputKeyMake(VK_RETURN, FALSE);
+			inputs[i++] = InputKeyMake(VK_RETURN, TRUE);
 
-			assert(i < ARRAY_LENGTH(inputs));
-			UINT sent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
+			assert(i < ARRAY_LEN(inputs));
+			UINT inputsSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
 
 			return 0;
 
@@ -553,9 +340,9 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			return CopySelectionToClipboard(window);
 
 		case ID_DESELECT:
-			if (HasArea(selectionRectangle)) {
+			if (RectangleHasArea(selectionRectangle)) {
 				selectionRectangle = (RECT){ 0 };
-				outlineSelection = FALSE;
+				showSelectionOutline = FALSE;
 			}
 			else ShowWindow(window, SW_HIDE);
 
@@ -563,68 +350,69 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_SELECT_ALL:
 			selectionRectangle = screenRectangle;
-			outlineSelection = TRUE;
+			showSelectionOutline = TRUE;
 			return 0;
 
+		// TODO: Skip over duplicate selections as well
 		case ID_UNDO:
-			if (currentSelection && currentSelection->prev) {
-				currentSelection = SelectionsUndo(currentSelection->prev);
+			if (lastSavedSelection && lastSavedSelection->prev) {
+				lastSavedSelection = RectangleListUndo(lastSavedSelection->prev);
 				// Prevent current selection from being empty if possible when the first element is reached and empty
-				if (!HasArea(currentSelection->data)) currentSelection = SelectionsRedo(currentSelection->next);
+				if (!RectangleHasArea(lastSavedSelection->data)) lastSavedSelection = RectangleListRedo(lastSavedSelection->next);
 
-				selectionRectangle = currentSelection->data;
+				selectionRectangle = lastSavedSelection->data;
 			}
 
 			return 0;
 
 		case ID_REDO:
-			if (currentSelection && currentSelection->next) {
-				currentSelection = SelectionsRedo(currentSelection->next);
+			if (lastSavedSelection && lastSavedSelection->next) {
+				lastSavedSelection = RectangleListRedo(lastSavedSelection->next);
 
-				if (!HasArea(currentSelection->data)) currentSelection = SelectionsUndo(currentSelection->prev);
+				if (!RectangleHasArea(lastSavedSelection->data)) lastSavedSelection = RectangleListUndo(lastSavedSelection->prev);
 
-				selectionRectangle = currentSelection->data;
+				selectionRectangle = lastSavedSelection->data;
 			}
 
 			return 0;
 
 		case ID_DOWNSCALE: {
 			RECT selectionRectangleCopy = selectionRectangle;
-			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
-				*selectionRight -= prevAspectRatio.cx;
-				*selectionBottom -= prevAspectRatio.cy;
+			if (!AspectRatioEqual(aspectRatio, previousAspectRatio) && !AspectRatioIsPositive(aspectRatio)) {
+				*selectionRight -= previousAspectRatio.cx;
+				*selectionBottom -= previousAspectRatio.cy;
 			}
 			else {
 				*selectionRight -= aspectRatio.cx;
 				*selectionBottom -= aspectRatio.cy;
-				prevAspectRatio = aspectRatio;
+				previousAspectRatio = aspectRatio;
 			}
 			// Ensure this key can only decrease the size of the selection
-			if (RectangleOutOfBounds(selectionRectangle) || GetArea(selectionRectangle) > GetArea(selectionRectangleCopy) || !GetArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
+			if (RectangleOutOfBounds(selectionRectangle, screenRectangle) || RectangleArea(selectionRectangle) > RectangleArea(selectionRectangleCopy) || !RectangleArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
 
 			return 0;
 		}
 
 		case ID_UPSCALE: {
 			RECT selectionRectangleCopy = selectionRectangle;
-			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioValid(aspectRatio)) {
-				*selectionRight += prevAspectRatio.cx;
-				*selectionBottom  += prevAspectRatio.cy;
+			if (!AspectRatioEqual(aspectRatio, previousAspectRatio) && !AspectRatioIsPositive(aspectRatio)) {
+				*selectionRight += previousAspectRatio.cx;
+				*selectionBottom  += previousAspectRatio.cy;
 			}
 			else {
 				*selectionRight += aspectRatio.cx;
 				*selectionBottom += aspectRatio.cy;
-				prevAspectRatio = aspectRatio;
+				previousAspectRatio = aspectRatio;
 			}
-			if (RectangleOutOfBounds(selectionRectangle) || !GetArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
+			if (RectangleOutOfBounds(selectionRectangle, screenRectangle) || !RectangleArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
 
 			return 0;
 		}
 
 		case ID_SAVE: {
-			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
-			const int SELECTION_WIDTH = GetWidth(selectionRectangle);
-			const int SELECTION_HEIGHT = GetHeight(selectionRectangle);
+			selectionRectangle = RectangleNormalizeTruncate(selectionRectangle, screenRectangle);
+			const int SELECTION_WIDTH = RectangleWidth(selectionRectangle);
+			const int SELECTION_HEIGHT = RectangleHeight(selectionRectangle);
 			const int SELECTION_AREA = SELECTION_WIDTH * SELECTION_HEIGHT;
 
 			// Ensure empty screenshot can't be saved
@@ -645,28 +433,28 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 			// Capture instance of screen pixels
 			uint32_t *screenPixels = malloc(sizeof(uint32_t) * SCREEN_AREA);
-			if (!screenPixels) return FreeSaveScreenshot(NULL, screenPixels, NULL, NULL, TRUE);
+			if (!screenPixels) return SaveScreenshotFree(NULL, screenPixels, NULL, NULL, TRUE);
 
-			int scanLinesCopied = GetDIBits(memory, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
+			int scanLinesCopied = GetDIBits(memoryDeviceContext, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
 
 			SaveScreenshotParameter *parameter = malloc(sizeof(SaveScreenshotParameter));
-			if (!parameter) return FreeSaveScreenshot(NULL, screenPixels, NULL, parameter, TRUE);
+			if (!parameter) return SaveScreenshotFree(NULL, screenPixels, NULL, parameter, TRUE);
 
 			parameter->selectionArea = SELECTION_AREA;
 			parameter->selectionRectangle = selectionRectangle;
 			parameter->screenPixels = screenPixels;
 			parameter->screenWidth = SCREEN_WIDTH;
-			wchar_t *fileDirectoryCopy = malloc(sizeof(wchar_t) * (wcslen(fileDirectory) + 1));
-			if (!fileDirectoryCopy) return FreeSaveScreenshot(NULL, screenPixels, fileDirectoryCopy, parameter, TRUE);
+			wchar_t *screenshotDirectoryCopy = malloc(sizeof(wchar_t) * (wcslen(screenshotDirectory) + 1));
+			if (!screenshotDirectoryCopy) return SaveScreenshotFree(NULL, screenPixels, screenshotDirectoryCopy, parameter, TRUE);
 
-			wcscpy(fileDirectoryCopy, fileDirectory);
-			parameter->fileDirectory = fileDirectoryCopy;
+			wcscpy(screenshotDirectoryCopy, screenshotDirectory);
+			parameter->screenshotDirectory = screenshotDirectoryCopy;
 			parameter->selectionWidth = SELECTION_WIDTH;
 			parameter->selectionHeight = SELECTION_HEIGHT;
 
 			HANDLE thread = CreateThread(NULL, 0, SaveScreenshot, parameter, 0, NULL);
 			// Clean up
-			if (!thread) return FreeSaveScreenshot(NULL, screenPixels, fileDirectoryCopy, parameter, TRUE);
+			if (!thread) return SaveScreenshotFree(NULL, screenPixels, screenshotDirectoryCopy, parameter, TRUE);
 			CloseHandle(thread);
 			return 0;
 		}
@@ -674,11 +462,11 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 		case ID_OPEN_CONFIG:
 			ShowWindow(window, SW_HIDE);
 
-			HANDLE config = CreateFileW(settingsPath, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-			if (config == INVALID_HANDLE_VALUE) {
+			HANDLE configHandle = CreateFileW(configPath, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (configHandle == INVALID_HANDLE_VALUE) {
 				return MessageBoxW(window, L"Config file could not be opened.", NULL, MB_OK | MB_ICONERROR);
 			}
-			CloseHandle(config);
+			CloseHandle(configHandle);
 
 			ShellExecuteW(window, L"open", CONFIG_FILE, NULL, exeDirectory, SW_SHOW);
 			return 0;
@@ -688,27 +476,9 @@ int HandleKeyCommand(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 	}
 }
 
-RECT GetBox(POINT p, const LONG size) {
+RECT SelectionHitboxMake(POINT p, const LONG size) {
 	RECT box = { .left = p.x - size/2, .top = p.y - size/2, .right = p.x + size/2, .bottom = p.y + size/2};
 	return box;
-}
-
-void PaintAnchor(HDC destination, POINT p, COLORREF color, LONG size) {
-	HBRUSH boxColor = CreateSolidBrush(color);
-	RECT box = GetBox(p, size);
-	FillRect(destination, &box, boxColor);
-	DeleteObject(boxColor);
-}
-
-LONG GetArea(RECT r) {
-	LONG w = r.right - r.left;
-	LONG h = r.bottom - r.top;
-	return w * h;
-}
-
-BOOL HasArea(RECT r) {
-	if (GetArea(r) != 0) return TRUE;
-	return FALSE;
 }
 
 typedef struct {
@@ -722,10 +492,10 @@ typedef struct {
 	POINT bottomLeft;
 	POINT bottomMid;
 	POINT bottomRight;
-} Anchors;
+} SelectionPoints;
 
-Anchors GetAnchors(RECT r) {
-	Anchors anchors;
+SelectionPoints SelectionPointsMake(RECT r) {
+	SelectionPoints anchors;
 
 	anchors.topLeft.x = r.left;
 	anchors.topLeft.y = r.top;
@@ -765,22 +535,22 @@ typedef struct {
 	RECT bottomLeft;
 	RECT bottomMid;
 	RECT bottomRight;
-} AnchorBoxes;
+} SelectionHitboxes;
 
-AnchorBoxes GetAnchorBoxes(Anchors anchors) {
-	AnchorBoxes boxes;
-	boxes.topLeft = GetBox(anchors.topLeft, BOX_SIZE);
-	boxes.topMid = GetBox(anchors.topMid, BOX_SIZE);
-	boxes.topRight = GetBox(anchors.topRight, BOX_SIZE);
-	boxes.midLeft = GetBox(anchors.midLeft, BOX_SIZE);
-	boxes.midRight = GetBox(anchors.midRight, BOX_SIZE);
-	boxes.bottomLeft = GetBox(anchors.bottomLeft, BOX_SIZE);
-	boxes.bottomMid = GetBox(anchors.bottomMid, BOX_SIZE);
-	boxes.bottomRight = GetBox(anchors.bottomRight, BOX_SIZE);
+SelectionHitboxes SelectionHitboxesMake(SelectionPoints anchors) {
+	SelectionHitboxes boxes;
+	boxes.topLeft = SelectionHitboxMake(anchors.topLeft, SELECTION_HITBOX_SIZE);
+	boxes.topMid = SelectionHitboxMake(anchors.topMid, SELECTION_HITBOX_SIZE);
+	boxes.topRight = SelectionHitboxMake(anchors.topRight, SELECTION_HITBOX_SIZE);
+	boxes.midLeft = SelectionHitboxMake(anchors.midLeft, SELECTION_HITBOX_SIZE);
+	boxes.midRight = SelectionHitboxMake(anchors.midRight, SELECTION_HITBOX_SIZE);
+	boxes.bottomLeft = SelectionHitboxMake(anchors.bottomLeft, SELECTION_HITBOX_SIZE);
+	boxes.bottomMid = SelectionHitboxMake(anchors.bottomMid, SELECTION_HITBOX_SIZE);
+	boxes.bottomRight = SelectionHitboxMake(anchors.bottomRight, SELECTION_HITBOX_SIZE);
 	return boxes;
 }
 
-AnchorBoxes FitBoxes(AnchorBoxes boxes, RECT fit) {
+SelectionHitboxes SelectionHitboxesExtend(SelectionHitboxes boxes, RECT fit) {
 	boxes.topMid.left = fit.left;
 	boxes.topMid.right = fit.right;
 
@@ -795,69 +565,59 @@ AnchorBoxes FitBoxes(AnchorBoxes boxes, RECT fit) {
 	return boxes;
 }
 
-HCURSOR GetCursor(POINT point, RECT displayRectangle, AnchorBoxes boxes) {
+HCURSOR WindowGetCursor(POINT cursorPos, RECT displayRectangle, SelectionHitboxes selectionHitboxes) {
 	// If selection is not visible, show default cursor
-	if (!HasArea(displayRectangle))													  return LoadCursor(NULL, IDC_ARROW);
-	else if (PtInRect(&boxes.topLeft, point) || PtInRect(&boxes.bottomRight, point))  return LoadCursor(NULL, IDC_SIZENWSE);
-	else if (PtInRect(&boxes.bottomLeft, point) || PtInRect(&boxes.topRight, point))  return LoadCursor(NULL, IDC_SIZENESW);
-	else if (PtInRect(&boxes.midLeft, point) || PtInRect(&boxes.midRight, point))	  return LoadCursor(NULL, IDC_SIZEWE);
-	else if (PtInRect(&boxes.topMid, point) || PtInRect(&boxes.bottomMid, point))	  return LoadCursor(NULL, IDC_SIZENS);
-	else if (PtInRect(&displayRectangle, point))									  return LoadCursor(NULL, IDC_SIZEALL);
+	if (!RectangleHasArea(displayRectangle))																			return LoadCursor(NULL, IDC_ARROW);
+	else if (PtInRect(&selectionHitboxes.topLeft, cursorPos) || PtInRect(&selectionHitboxes.bottomRight, cursorPos))	return LoadCursor(NULL, IDC_SIZENWSE);
+	else if (PtInRect(&selectionHitboxes.bottomLeft, cursorPos) || PtInRect(&selectionHitboxes.topRight, cursorPos))	return LoadCursor(NULL, IDC_SIZENESW);
+	else if (PtInRect(&selectionHitboxes.midLeft, cursorPos) || PtInRect(&selectionHitboxes.midRight, cursorPos))		return LoadCursor(NULL, IDC_SIZEWE);
+	else if (PtInRect(&selectionHitboxes.topMid, cursorPos) || PtInRect(&selectionHitboxes.bottomMid, cursorPos))		return LoadCursor(NULL, IDC_SIZENS);
+	else if (PtInRect(&displayRectangle, cursorPos))																	return LoadCursor(NULL, IDC_SIZEALL);
 	return LoadCursor(NULL, IDC_ARROW);
 }
 
-RECT GetUpdateRectangle(RECT before, RECT after, int padding) {
-	before = NormalizeAndTruncate(before);
-	after = NormalizeAndTruncate(after);
-	return (RECT) {
-		.left = MIN(before.left, after.left) - padding,
-		.top = MIN(before.top, after.top) - padding,
-		.right = MAX(before.right, after.right) + padding,
-		.bottom = MAX(before.bottom, after.bottom) + padding
-	};
-}
-
 LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
-	static BOOL drag = FALSE;
-	static POINT previousPosition;
-	static LONG *selectedXCorner = NULL;
-	static LONG *selectedYCorner = NULL;
+	static BOOL dragSelection = FALSE;
+	static POINT previousCursorPos;
+	static LONG *selectedX = NULL;
+	static LONG *selectedY = NULL;
 
-	RECT displayRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
-	Anchors anchors = GetAnchors(displayRectangle);
-	AnchorBoxes boxes = GetAnchorBoxes(anchors);
-	boxes = FitBoxes(boxes, displayRectangle);
-	static POINT point;
-	GetCursorPos(&point);
+	RECT displayRectangle = RectangleNormalizeTruncate(selectionRectangle, screenRectangle);
+	SelectionPoints selectionPoints = SelectionPointsMake(displayRectangle);
+	SelectionHitboxes selectionHitboxes = SelectionHitboxesMake(selectionPoints);
+	selectionHitboxes = SelectionHitboxesExtend(selectionHitboxes, displayRectangle);
+	static POINT cursorPos;
+	GetCursorPos(&cursorPos);
 
 	switch (message) {
 		case WM_SHOWWINDOW: {
-			BOOL windowShown = wParameter;
-			if (!windowShown) outlineSelection = FALSE;
+			BOOL showWindow = wParameter;
+			if (!showWindow) showSelectionOutline = FALSE;
 			return DefWindowProc(window, message, wParameter, lParameter);
 		}
 
 
 		case WM_ACTIVATE: {
-			BOOL activationStatus = HIWORD(wParameter);
-			if (activationStatus == WA_INACTIVE) ShowWindow(window, SW_HIDE);
+			BOOL windowActivation = HIWORD(wParameter);
+			if (windowActivation == WA_INACTIVE) ShowWindow(window, SW_HIDE);
 			return DefWindowProc(window, message, wParameter, lParameter);
 		}
 
 		case WM_DISPLAYCHANGE:
 			if (IsWindowVisible(window)) ShowWindow(window, SW_HIDE);
 
-			SelectObject(memory, previousMemoryBitmap);
-			DeleteDC(memory);
+			SelectObject(memoryDeviceContext, previousMemoryBitmap);
+			DeleteDC(memoryDeviceContext);
 			DeleteObject(memoryBitmap);
-			memory = CreateCompatibleDC(screen);
+			memoryDeviceContext = CreateCompatibleDC(screenDeviceContext);
 
 			SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 			SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
+			screenRectangle = RectangleMake(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
 			// Create screen compatible bitmap and associate it with the memory device context
-			memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
-			HBITMAP previousMemoryBitmap = SelectObject(memory, memoryBitmap);
+			memoryBitmap = CreateCompatibleBitmap(screenDeviceContext, SCREEN_WIDTH, SCREEN_HEIGHT);
+			HBITMAP previousMemoryBitmap = SelectObject(memoryDeviceContext, memoryBitmap);
 
 			return 0;
 
@@ -865,9 +625,9 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_HOTKEY:
 			if (!IsWindowVisible(window)) {
 				selectionRectangle = (RECT){ 0 };
-				currentSelection = SelectionsInsertAfter(currentSelection, selectionRectangle);
+				lastSavedSelection = RectangleListInsertAfter(lastSavedSelection, selectionRectangle);
 				// Transfer color data from screen to memory
-				BOOL transferred = BitBlt(memory, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screen, 0, 0, SRCCOPY);
+				BOOL transferred = BitBlt(memoryDeviceContext, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screenDeviceContext, 0, 0, SRCCOPY);
 				if (GetForegroundWindow() != window) SetForegroundWindow(window);
 				SetWindowPos(window, HWND_TOP, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SWP_SHOWWINDOW);
 				// BringWindowToTop(window);
@@ -875,10 +635,10 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			return 0;
 
 		case WM_COMMAND:
-			if (HandleKeyCommand(window, message, wParameter, lParameter) == 0) {
-				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
-				BOOL repaint = InvalidateRect(window, &update, TRUE);
-				currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
+			if (WindowOnShortcut(window, message, wParameter, lParameter) == 0) {
+				RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
+				BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
+				lastSavedSelection = RectangleListAdd(lastSavedSelection, selectionRectangle);
 				return 0;
 			}
 			return 1;
@@ -886,182 +646,182 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 		case WM_SETCURSOR: {
 			// Update cursor based on position while left click is not held
 			SHORT leftClick = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
-			if (!leftClick) SetCursor(GetCursor(point, displayRectangle, boxes));
+			if (!leftClick) SetCursor(WindowGetCursor(cursorPos, displayRectangle, selectionHitboxes));
 			// If left click is held and selection is not visible, show a default resize icon
-			else if (leftClick && !HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
+			else if (leftClick && !RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
 			return TRUE;
 		}
 
 		case WM_LBUTTONDOWN: {
-			BOOL cursorInSelection = PtInRect(&displayRectangle, point);
-			int squareLength = MIN(GetWidth(selectionRectangle), GetHeight(selectionRectangle));
+			BOOL cursorInSelection = PtInRect(&displayRectangle, cursorPos);
+			int selectionSquareLength = RectangleMinSideLength(selectionRectangle);
 
-			if (PtInRect(&boxes.topLeft, point)) {
-				selectedXCorner = &selectionRectangle.left;
-				selectedYCorner = &selectionRectangle.top;
-
-				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
-					selectionRectangle.left = selectionRectangle.right - squareLength;
-					selectionRectangle.top = selectionRectangle.bottom - squareLength;
-				}
-			}
-			else if (PtInRect(&boxes.bottomRight, point)) {
-				selectedXCorner = &selectionRectangle.right;
-				selectedYCorner = &selectionRectangle.bottom;
+			if (PtInRect(&selectionHitboxes.topLeft, cursorPos)) {
+				selectedX = &selectionRectangle.left;
+				selectedY = &selectionRectangle.top;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
-					selectionRectangle.right = selectionRectangle.left + squareLength;
-					selectionRectangle.bottom = selectionRectangle.top + squareLength;
+					selectionRectangle.left = selectionRectangle.right - selectionSquareLength;
+					selectionRectangle.top = selectionRectangle.bottom - selectionSquareLength;
 				}
 			}
-			else if (PtInRect(&boxes.bottomLeft, point)) {
-				selectedXCorner = &selectionRectangle.left;
-				selectedYCorner = &selectionRectangle.bottom;
+			else if (PtInRect(&selectionHitboxes.bottomRight, cursorPos)) {
+				selectedX = &selectionRectangle.right;
+				selectedY = &selectionRectangle.bottom;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
-					selectionRectangle.left = selectionRectangle.right - squareLength;
-					selectionRectangle.bottom = selectionRectangle.top + squareLength;
+					selectionRectangle.right = selectionRectangle.left + selectionSquareLength;
+					selectionRectangle.bottom = selectionRectangle.top + selectionSquareLength;
 				}
 			}
-			else if (PtInRect(&boxes.topRight, point)) {
-				selectedXCorner = &selectionRectangle.right;
-				selectedYCorner = &selectionRectangle.top;
+			else if (PtInRect(&selectionHitboxes.bottomLeft, cursorPos)) {
+				selectedX = &selectionRectangle.left;
+				selectedY = &selectionRectangle.bottom;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
-					selectionRectangle.right = selectionRectangle.left + squareLength;
-					selectionRectangle.top = selectionRectangle.bottom - squareLength;
+					selectionRectangle.left = selectionRectangle.right - selectionSquareLength;
+					selectionRectangle.bottom = selectionRectangle.top + selectionSquareLength;
 				}
 			}
-			else if (PtInRect(&boxes.midLeft, point)) {
-				selectedXCorner = &selectionRectangle.left;
-				selectedYCorner = NULL;
+			else if (PtInRect(&selectionHitboxes.topRight, cursorPos)) {
+				selectedX = &selectionRectangle.right;
+				selectedY = &selectionRectangle.top;
 
-				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.left = selectionRectangle.right - GetHeight(selectionRectangle);
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
+					selectionRectangle.right = selectionRectangle.left + selectionSquareLength;
+					selectionRectangle.top = selectionRectangle.bottom - selectionSquareLength;
+				}
 			}
-			else if (PtInRect(&boxes.midRight, point)) {
-				selectedXCorner = &selectionRectangle.right;
-				selectedYCorner = NULL;
+			else if (PtInRect(&selectionHitboxes.midLeft, cursorPos)) {
+				selectedX = &selectionRectangle.left;
+				selectedY = NULL;
 
-				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.right = selectionRectangle.left + GetHeight(selectionRectangle);
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.left = selectionRectangle.right - RectangleHeight(selectionRectangle);
 			}
-			else if (PtInRect(&boxes.topMid, point)) {
-				selectedXCorner = NULL;
-				selectedYCorner = &selectionRectangle.top;
+			else if (PtInRect(&selectionHitboxes.midRight, cursorPos)) {
+				selectedX = &selectionRectangle.right;
+				selectedY = NULL;
 
-				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.top = selectionRectangle.bottom - GetWidth(selectionRectangle);
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.right = selectionRectangle.left + RectangleHeight(selectionRectangle);
 			}
-			else if (PtInRect(&boxes.bottomMid, point)) {
-				selectedXCorner = NULL;
-				selectedYCorner = &selectionRectangle.bottom;
+			else if (PtInRect(&selectionHitboxes.topMid, cursorPos)) {
+				selectedX = NULL;
+				selectedY = &selectionRectangle.top;
 
-				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.bottom = selectionRectangle.top + GetWidth(selectionRectangle);
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.top = selectionRectangle.bottom - RectangleWidth(selectionRectangle);
+			}
+			else if (PtInRect(&selectionHitboxes.bottomMid, cursorPos)) {
+				selectedX = NULL;
+				selectedY = &selectionRectangle.bottom;
+
+				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle.bottom = selectionRectangle.top + RectangleWidth(selectionRectangle);
 			}
 
 			// Reset selection
 			else if (!cursorInSelection) {
-				selectionRectangle.left = point.x;
-				selectionRectangle.top = point.y;
+				selectionRectangle.left = cursorPos.x;
+				selectionRectangle.top = cursorPos.y;
 				selectionRectangle.right = selectionRectangle.left;
 				selectionRectangle.bottom = selectionRectangle.top;
 
-				selectedXCorner = &selectionRectangle.right;
-				selectedYCorner = &selectionRectangle.bottom;
+				selectedX = &selectionRectangle.right;
+				selectedY = &selectionRectangle.bottom;
 
 				// Ensure cursor is set on a new selection
 				SetCursor(LoadCursor(NULL, IDC_SIZENWSE));
 			}
 			else if (cursorInSelection) {
-				drag = TRUE;
+				dragSelection = TRUE;
 
 				if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) selectionRectangle = RectangleToSquare(selectionRectangle);
 			}
 
-			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
-			BOOL repaint = InvalidateRect(window, &update, TRUE);
+			RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
+			BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
 			return 0;
 		}
 
 		case WM_MOUSEMOVE: {
 			// https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-mousemove
-			if ((wParameter & MK_LBUTTON) && !drag) {
-				if (selectedXCorner) *selectedXCorner = point.x;
-				if (selectedYCorner) *selectedYCorner = point.y;
-				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
-				BOOL repaint = InvalidateRect(window, &update, TRUE);
+			if ((wParameter & MK_LBUTTON) && !dragSelection) {
+				if (selectedX) *selectedX = cursorPos.x;
+				if (selectedY) *selectedY = cursorPos.y;
+				RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
+				BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
 			}
-			else if ((wParameter & MK_LBUTTON) && drag) {
-				POINT difference = GetDifference(point, previousPosition);
-				selectionRectangle = TranslateRectangle(selectionRectangle, difference);
-				RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
-				BOOL repaint = InvalidateRect(window, &update, TRUE);
+			else if ((wParameter & MK_LBUTTON) && dragSelection) {
+				POINT translation = PositionSubtract(cursorPos, previousCursorPos);
+				selectionRectangle = RectangleTranslate(selectionRectangle, translation);
+				RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
+				BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
 			}
-			previousPosition = point;
+			previousCursorPos = cursorPos;
 			return 0;
 		}
 
 		case WM_LBUTTONUP: {
 			// Normalize rectangle on release to ensure that the corner coordinates are consistent for subsequent rectangle transformations
-			selectionRectangle = GetTruncatedRectangle(GetNormalizedRectangle(selectionRectangle));
+			selectionRectangle = RectangleNormalizeTruncate(selectionRectangle, screenRectangle);
 
 			// Track selection history in list
-			currentSelection = SelectionsAdd(currentSelection, selectionRectangle);
-			// assert(selections == SelectionsFirst(currentSelection));
+			lastSavedSelection = RectangleListAdd(lastSavedSelection, selectionRectangle);
+			// assert(selections == RectangleListFirst(lastSavedSelection));
 
 			// If selection is not visible when left click is released, show default cursor
-			if (!HasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
-			drag = FALSE;
+			if (!RectangleHasArea(selectionRectangle)) SetCursor(LoadCursor(NULL, IDC_ARROW));
+			dragSelection = FALSE;
 
-			RECT update = GetUpdateRectangle(displayRectangle, selectionRectangle, BOX_SIZE / 2);
-			BOOL repaint = InvalidateRect(window, &update, TRUE);
+			RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
+			BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
 		}
 
 
 		case WM_PAINT: {
 			PAINTSTRUCT paint;
-			HDC client = BeginPaint(window, &paint);
+			HDC clientDeviceContext = BeginPaint(window, &paint);
 
-			RECT update = paint.rcPaint;
-			RECT sceneCoords = { .left = 0, .top = 0, .right = GetWidth(update), .bottom = GetHeight(update) };
+			RECT updateRegion = paint.rcPaint;
+			RECT sceneCoords = { .left = 0, .top = 0, .right = RectangleWidth(updateRegion), .bottom = RectangleHeight(updateRegion) };
 
-			HDC scene = CreateCompatibleDC(client);
-			HBITMAP sceneBitmap = CreateCompatibleBitmap(client, GetWidth(update), GetHeight(update));
-			HBITMAP previousSceneBitmap = SelectObject(scene, sceneBitmap);
-			HBRUSH backgroundColor = CreateSolidBrush(RGB(0, 0, 0));
+			HDC sceneDeviceContext = CreateCompatibleDC(clientDeviceContext);
+			HBITMAP sceneBitmap = CreateCompatibleBitmap(clientDeviceContext, RectangleWidth(updateRegion), RectangleHeight(updateRegion));
+			HBITMAP previousSceneBitmap = SelectObject(sceneDeviceContext, sceneBitmap);
+			HBRUSH sceneBackgroundColor = CreateSolidBrush(RGB(0, 0, 0));
 
-			FillRect(scene, &sceneCoords, backgroundColor);
+			FillRect(sceneDeviceContext, &sceneCoords, sceneBackgroundColor);
 			BLENDFUNCTION blend = { 0 };
 			blend.BlendOp = AC_SRC_OVER;
 			blend.SourceConstantAlpha = 128;
 			blend.AlphaFormat = AC_SRC_ALPHA;
-			BOOL blended = GdiAlphaBlend(scene, 0, 0, GetWidth(update), GetHeight(update),
-										 memory, update.left, update.top, GetWidth(update), GetHeight(update), blend);
+			BOOL blended = GdiAlphaBlend(sceneDeviceContext, 0, 0, RectangleWidth(updateRegion), RectangleHeight(updateRegion),
+										 memoryDeviceContext, updateRegion.left, updateRegion.top, RectangleWidth(updateRegion), RectangleHeight(updateRegion), blend);
 
-			if (HasArea(displayRectangle)) {
+			if (RectangleHasArea(displayRectangle)) {
 				// Display rectangle must be relative to the update region, not the client
-				BitBlt(scene, (displayRectangle.left - update.left), (displayRectangle.top - update.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
-					   memory, displayRectangle.left, displayRectangle.top, SRCCOPY);
+				BitBlt(sceneDeviceContext, (displayRectangle.left - updateRegion.left), (displayRectangle.top - updateRegion.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
+					   memoryDeviceContext, displayRectangle.left, displayRectangle.top, SRCCOPY);
 
-				if (outlineSelection) {
+				if (showSelectionOutline) {
 					COLORREF black = RGB(0, 0, 0);
-					HPEN pen = CreatePen(PS_DOT, 1, black);
-					SelectObject(scene, pen);
+					HPEN dottedPen = CreatePen(PS_DOT, 1, black);
+					SelectObject(sceneDeviceContext, dottedPen);
 
-					MoveToEx(scene, displayRectangle.left - update.left, displayRectangle.top - update.top, NULL);
-					LineTo(scene, displayRectangle.right - update.left, displayRectangle.top - update.top);
-					LineTo(scene, displayRectangle.right - update.left, displayRectangle.bottom - update.top);
-					LineTo(scene, displayRectangle.left - update.left, displayRectangle.bottom - update.top);
-					LineTo(scene, displayRectangle.left - update.left, displayRectangle.top - update.top);
+					MoveToEx(sceneDeviceContext, displayRectangle.left - updateRegion.left, displayRectangle.top - updateRegion.top, NULL);
+					LineTo(sceneDeviceContext, displayRectangle.right - updateRegion.left, displayRectangle.top - updateRegion.top);
+					LineTo(sceneDeviceContext, displayRectangle.right - updateRegion.left, displayRectangle.bottom - updateRegion.top);
+					LineTo(sceneDeviceContext, displayRectangle.left - updateRegion.left, displayRectangle.bottom - updateRegion.top);
+					LineTo(sceneDeviceContext, displayRectangle.left - updateRegion.left, displayRectangle.top - updateRegion.top);
 
-					DeleteObject(pen);
+					DeleteObject(dottedPen);
 				}
 			}
 
-			BitBlt(client, update.left, update.top, GetWidth(update), GetHeight(update), scene, 0, 0, SRCCOPY);
+			BitBlt(clientDeviceContext, updateRegion.left, updateRegion.top, RectangleWidth(updateRegion), RectangleHeight(updateRegion), sceneDeviceContext, 0, 0, SRCCOPY);
 
 			// Clean up
-			DeleteObject(backgroundColor);
-			SelectObject(scene, previousSceneBitmap);
-			DeleteDC(scene);
+			DeleteObject(sceneBackgroundColor);
+			SelectObject(sceneDeviceContext, previousSceneBitmap);
+			DeleteDC(sceneDeviceContext);
 			DeleteObject(sceneBitmap);
 			EndPaint(window, &paint);
 			return 0;
@@ -1069,7 +829,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 		case WM_DESTROY:
 			// Free selection history
-			SelectionsFree(SelectionsFirst(currentSelection));
+			RectangleListFree(RectangleListFirst(lastSavedSelection));
 			PostQuitMessage(0);
 			return 0;
 
@@ -1078,72 +838,62 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	}
 }
 
-BOOL GetExeDirectory(wchar_t *d) {
-	GetModuleFileName(NULL, d, MAX_PATH);
-	if (GetLastError()) return FALSE;
-	return (PathCchRemoveFileSpec(d, MAX_PATH) == S_OK);
-}
-
-BOOL GetSettingsPath(wchar_t *d) {
-	return (PathCombine(d, exeDirectory, CONFIG_FILE) != NULL);
-}
-
-void SetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD cmd, wchar_t *configVar) {
-	wchar_t keyBuffer[MAX_PATH];
-	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVar, NULL, keyBuffer, MAX_PATH, settingsPath);
-	CharUpperW(keyBuffer);
+void ConfigGetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD windowCommand, wchar_t *configVariable) {
+	wchar_t lineBuffer[MAX_PATH];
+	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVariable, NULL, lineBuffer, MAX_PATH, configPath);
+	CharUpperW(lineBuffer);
 
 	if (!charactersCopied) {
-		*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = cmd };
+		*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = windowCommand };
 		return;
 	}
 
-	*shortcut = (ACCEL) { .fVirt = FVIRTKEY, .key = 0, .cmd = cmd };
+	*shortcut = (ACCEL) { .fVirt = FVIRTKEY, .key = 0, .cmd = windowCommand };
 
 	int i = 0;
-	while (keyBuffer[i]) {
-		if (keyBuffer[i] == '+' || IsCharSpaceW(keyBuffer[i])) {
+	while (lineBuffer[i]) {
+		if (lineBuffer[i] == '+' || IsCharSpaceW(lineBuffer[i])) {
 			i += 1;
 		}
-		else if (wcsncmp(&keyBuffer[i], SHIFT_STRING, wcslen(SHIFT_STRING)) == 0) {
+		else if (wcsncmp(&lineBuffer[i], SHIFT_STRING, wcslen(SHIFT_STRING)) == 0) {
 			shortcut->fVirt |= FSHIFT;
 			i += wcslen(SHIFT_STRING);
 		}
-		else if (wcsncmp(&keyBuffer[i], CTRL_STRING, wcslen(CTRL_STRING)) == 0) {
+		else if (wcsncmp(&lineBuffer[i], CTRL_STRING, wcslen(CTRL_STRING)) == 0) {
 			shortcut->fVirt |= FCONTROL;
 			i += wcslen(CTRL_STRING);
 		}
-		else if (wcsncmp(&keyBuffer[i], ALT_STRING, wcslen(ALT_STRING)) == 0) {
+		else if (wcsncmp(&lineBuffer[i], ALT_STRING, wcslen(ALT_STRING)) == 0) {
 			shortcut->fVirt |= FALT;
 			i += wcslen(ALT_STRING);
 		}
-		else if (wcsncmp(&keyBuffer[i], HEX_PREFIX, wcslen(HEX_PREFIX)) == 0) {
+		else if (wcsncmp(&lineBuffer[i], HEX_PREFIX, wcslen(HEX_PREFIX)) == 0) {
 			int j = i + wcslen(HEX_PREFIX);
-			while (keyBuffer[j]) {
-				if ('0' <= keyBuffer[j] && keyBuffer[j] <= 'F') j += 1;
+			while (lineBuffer[j]) {
+				if ('0' <= lineBuffer[j] && lineBuffer[j] <= 'F') j += 1;
 				else break;
 			}
 			int hexSuffixLength = j - (i + wcslen(HEX_PREFIX));
 			if (hexSuffixLength != 2) {
-				*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = cmd };
+				*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = windowCommand };
 				MessageBoxW(NULL, L"Could not assign a key due to an invalid hex key code in the config. Code must be in range 0x01 to 0xFE. Default key was assigned instead.", L"Warning", MB_OK | MB_ICONWARNING);
 				return;
 			}
-			wchar_t hexadecimal[MAX_PATH];
-			wcsncpy(hexadecimal, &keyBuffer[i], wcslen(HEX_PREFIX) + hexSuffixLength + 1);
-			int integer = 0;
-			StrToIntExW(hexadecimal, STIF_SUPPORT_HEX, &integer);
-			shortcut->key = (WORD) integer;
+			wchar_t hexKeyCode[MAX_PATH];
+			wcsncpy(hexKeyCode, &lineBuffer[i], wcslen(HEX_PREFIX) + hexSuffixLength + 1);
+			int keyCode = 0;
+			StrToIntExW(hexKeyCode, STIF_SUPPORT_HEX, &keyCode);
+			shortcut->key = (WORD) keyCode;
 			i += wcslen(HEX_PREFIX) + hexSuffixLength;
 		}
 		else {
-			shortcut->key = keyBuffer[i];
+			shortcut->key = lineBuffer[i];
 			i += 1;
 		}
 	}
 }
 
-UINT ShortcutModsToHotKeyMods(WORD shortcutMods) {
+UINT ConfigShortcutModsToHotKeyMods(WORD shortcutMods) {
 	UINT hotkeyMods = 0;
 	hotkeyMods |= (shortcutMods & FSHIFT) ? MOD_SHIFT : 0;
 	hotkeyMods |= (shortcutMods & FCONTROL) ? MOD_CONTROL : 0;
@@ -1151,9 +901,9 @@ UINT ShortcutModsToHotKeyMods(WORD shortcutMods) {
 	return hotkeyMods;
 }
 
-BOOL LoadConfig(window) {
+BOOL ConfigLoad(HWND window) {
 	ACCEL screenCaptureShortcut = { 0 };
-	SetShortcut(&screenCaptureShortcut, NULL, VK_SNAPSHOT, NULL, L"SCREEN_CAPTURE");
+	ConfigGetShortcut(&screenCaptureShortcut, NULL, VK_SNAPSHOT, NULL, L"SCREEN_CAPTURE");
 
 	// If shortcut table already exists, destroy it
 	if (shortcutTable) {
@@ -1162,36 +912,36 @@ BOOL LoadConfig(window) {
 	}
 
 	ACCEL shortcuts[NUM_SHORTCUTS];
-	SetShortcut(&shortcuts[0], NULL, VK_ESCAPE, ID_CLOSE, L"CLOSE");
-	SetShortcut(&shortcuts[1], NULL, 'F', ID_OUTLINE_SELECTION, L"OUTLINE_SELECTION");
-	SetShortcut(&shortcuts[2], NULL, 'R', ID_RELOAD_CONFIG, L"RELOAD_CONFIG");
-	SetShortcut(&shortcuts[3], FCONTROL, 'E', ID_OPEN_PAINT, L"OPEN_PAINT");
-	SetShortcut(&shortcuts[4], FCONTROL, 'C', ID_COPY, L"COPY");
-	SetShortcut(&shortcuts[5], FCONTROL, 'W', ID_DESELECT, L"DESELECT");
-	SetShortcut(&shortcuts[6], FCONTROL, 'A', ID_SELECT_ALL, L"SELECT_ALL");
-	SetShortcut(&shortcuts[7], FCONTROL, 'Z', ID_UNDO, L"UNDO");
-	SetShortcut(&shortcuts[8], FCONTROL, 'Y', ID_REDO, L"REDO");
-	SetShortcut(&shortcuts[9], NULL, '2', ID_UPSCALE, L"UPSCALE");
-	SetShortcut(&shortcuts[10], NULL, '1', ID_DOWNSCALE, L"DOWNSCALE");
-	SetShortcut(&shortcuts[11], FCONTROL, 'S', ID_SAVE, L"SAVE");
-	SetShortcut(&shortcuts[12], NULL, VK_GRAVE, ID_OPEN_CONFIG, L"OPEN_CONFIG");
+	ConfigGetShortcut(&shortcuts[0], NULL, VK_ESCAPE, ID_CLOSE, L"CLOSE");
+	ConfigGetShortcut(&shortcuts[1], NULL, 'F', ID_SELECTION_OUTLINE, L"SELECTION_OUTLINE");
+	ConfigGetShortcut(&shortcuts[2], NULL, 'R', ID_RELOAD_CONFIG, L"RELOAD_CONFIG");
+	ConfigGetShortcut(&shortcuts[3], FCONTROL, 'E', ID_OPEN_IN_PAINT, L"OPEN_IN_PAINT");
+	ConfigGetShortcut(&shortcuts[4], FCONTROL, 'C', ID_COPY, L"COPY");
+	ConfigGetShortcut(&shortcuts[5], FCONTROL, 'W', ID_DESELECT, L"DESELECT");
+	ConfigGetShortcut(&shortcuts[6], FCONTROL, 'A', ID_SELECT_ALL, L"SELECT_ALL");
+	ConfigGetShortcut(&shortcuts[7], FCONTROL, 'Z', ID_UNDO, L"UNDO");
+	ConfigGetShortcut(&shortcuts[8], FCONTROL, 'Y', ID_REDO, L"REDO");
+	ConfigGetShortcut(&shortcuts[9], NULL, '2', ID_UPSCALE, L"UPSCALE");
+	ConfigGetShortcut(&shortcuts[10], NULL, '1', ID_DOWNSCALE, L"DOWNSCALE");
+	ConfigGetShortcut(&shortcuts[11], FCONTROL, 'S', ID_SAVE, L"SAVE");
+	ConfigGetShortcut(&shortcuts[12], NULL, VK_GRAVE, ID_OPEN_CONFIG, L"OPEN_CONFIG");
 
-	assert(NUM_SHORTCUTS == ARRAY_LENGTH(shortcuts));
+	assert(NUM_SHORTCUTS == ARRAY_LEN(shortcuts));
 
-	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LENGTH(shortcuts));
+	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LEN(shortcuts));
 
-	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"FILE_PATH", exeDirectory, fileDirectory, MAX_PATH, settingsPath);
-	if (!charactersCopied) wcscpy(fileDirectory, exeDirectory);
+	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"SCREENSHOT_DIRECTORY", exeDirectory, screenshotDirectory, MAX_PATH, configPath);
+	if (!charactersCopied) wcscpy(screenshotDirectory, exeDirectory);
 
-	if (!DirectoryExists(fileDirectory)) {
-		MessageBoxW(NULL, L"Save location could not be found. Check the FILE_PATH variable in your config.", NULL, MB_OK | MB_ICONERROR);
+	if (!DirectoryExists(screenshotDirectory)) {
+		MessageBoxW(NULL, L"Save location could not be found. Check the SCREENSHOT_DIRECTORY variable in your config.", NULL, MB_OK | MB_ICONERROR);
 		return FALSE;
 	}
 
-	GetPrivateProfileStringW(L"output", L"FILE_PREFIX", L"Screenshot_", filePrefix, MAX_PATH, settingsPath);
+	GetPrivateProfileStringW(L"output", L"SCREENSHOT_PREFIX", L"Screenshot_", screenshotPrefix, MAX_PATH, configPath);
 
-	UnregisterHotKey(window, HOTKEY_SCREEN_CAPTURE);
-	if (!RegisterHotKey(window, HOTKEY_SCREEN_CAPTURE, ShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
+	UnregisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE);
+	if (!RegisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE, ConfigShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
 		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
 		return FALSE;
 	}
@@ -1199,7 +949,7 @@ BOOL LoadConfig(window) {
 	return TRUE;
 }
 
-int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInstance, _In_ PWSTR commandLine, _In_ int visibility) {
+int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInstance, _In_ PWSTR commandLine, _In_ int showCommand) {
 	// https://stackoverflow.com/a/33531179/32242805
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
 	HANDLE singleInstanceMutex = CreateMutex(NULL, TRUE, L"Single Instance Mutex for Screenshot Application");
@@ -1208,7 +958,7 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 		return 1;
 	}
 
-	if (!GetExeDirectory(exeDirectory) || !GetSettingsPath(settingsPath)) {
+	if (!GetExeDirectory(exeDirectory) || !GetConfigPath(configPath)) {
 		MessageBoxW(NULL, L"Could not find config path or directory where executable is running.", NULL, MB_OK | MB_ICONERROR);
 		return 1;
 	}
@@ -1216,18 +966,15 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 	SCREEN_WIDTH = GetSystemMetrics(SM_CXSCREEN);
 	SCREEN_HEIGHT = GetSystemMetrics(SM_CYSCREEN);
 
-	screenRectangle.left = 0;
-	screenRectangle.top = 0;
 	// "By convention, the right and bottom edges of the rectangle are normally considered exclusive."
-	screenRectangle.right = SCREEN_WIDTH;
-	screenRectangle.bottom = SCREEN_HEIGHT;
+	screenRectangle = RectangleMake(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-	screen = GetDC(SCREEN_HANDLE);
-	memory = CreateCompatibleDC(screen);
+	screenDeviceContext = GetDC(SCREEN_HANDLE);
+	memoryDeviceContext = CreateCompatibleDC(screenDeviceContext);
 
 	// Create screen compatible bitmap and associate it with the memory device context
-	memoryBitmap = CreateCompatibleBitmap(screen, SCREEN_WIDTH, SCREEN_HEIGHT);
-	previousMemoryBitmap = SelectObject(memory, memoryBitmap);
+	memoryBitmap = CreateCompatibleBitmap(screenDeviceContext, SCREEN_WIDTH, SCREEN_HEIGHT);
+	previousMemoryBitmap = SelectObject(memoryDeviceContext, memoryBitmap);
 
 	WNDCLASS windowClass = { 0 };
 	windowClass.hInstance = appInstance;
@@ -1237,10 +984,10 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 	RegisterClass(&windowClass);
 
 	HWND window = CreateWindow(windowClass.lpszClassName, L"", WS_POPUP,
-				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
-				 NULL, NULL, appInstance, NULL);
+							   0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+							   NULL, NULL, appInstance, NULL);
 
-	if (!LoadConfig(window)) {
+	if (!ConfigLoad(window)) {
 		// TODO: Clean up?
 		return 1;
 	}
@@ -1263,9 +1010,9 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 	}
 
 	// Clean up
-	ReleaseDC(SCREEN_HANDLE, screen);
-	SelectObject(memory, previousMemoryBitmap);
-	DeleteDC(memory);
+	ReleaseDC(SCREEN_HANDLE, screenDeviceContext);
+	SelectObject(memoryDeviceContext, previousMemoryBitmap);
+	DeleteDC(memoryDeviceContext);
 	DeleteObject(memoryBitmap);
 
 	DestroyAcceleratorTable(shortcutTable);
