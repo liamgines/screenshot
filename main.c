@@ -182,11 +182,11 @@ LRESULT CopySelectionToClipboard(HWND window) {
 	BITMAPINFO info = { 0 };
 	info.bmiHeader = header;
 
-	HDC copy = CreateCompatibleDC(memoryDeviceContext);
+	HDC copyDeviceContext = CreateCompatibleDC(memoryDeviceContext);
 	HBITMAP copyBitmap = CreateCompatibleBitmap(memoryDeviceContext, SELECTION_WIDTH, SELECTION_HEIGHT);
-	HBITMAP previousCopyBitmap = SelectObject(copy, copyBitmap);
+	HBITMAP previousCopyBitmap = SelectObject(copyDeviceContext, copyBitmap);
 
-	BitBlt(copy, 0, 0, SELECTION_WIDTH, SELECTION_HEIGHT,
+	BitBlt(copyDeviceContext, 0, 0, SELECTION_WIDTH, SELECTION_HEIGHT,
 		memoryDeviceContext, selectionRectangle.left, selectionRectangle.top, SRCCOPY);
 
 	int headerAndPixelsSize = sizeof(header) + (sizeof(uint32_t) * SELECTION_AREA);
@@ -199,15 +199,15 @@ LRESULT CopySelectionToClipboard(HWND window) {
 		uint32_t *selectionPixels = (uint32_t *)(headerAndPixels + sizeof(header));
 
 		*headerPart = header;
-		int scanLinesCopied = GetDIBits(copy, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
+		int scanLinesCopied = GetDIBits(copyDeviceContext, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
 
 		CopyDataToClipboard(window, headerAndPixels, headerAndPixelsSize, CF_DIB);
 	}
 
 	// Clean up
 	free(headerAndPixels);
-	SelectObject(copy, previousCopyBitmap);
-	DeleteDC(copy);
+	SelectObject(copyDeviceContext, previousCopyBitmap);
+	DeleteDC(copyDeviceContext);
 	DeleteObject(copyBitmap);
 
 	return 0;
