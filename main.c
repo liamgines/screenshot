@@ -900,7 +900,7 @@ UINT ConfigShortcutModsToHotKeyMods(WORD shortcutMods) {
 	return hotkeyMods;
 }
 
-BOOL ConfigLoad(window) {
+BOOL ConfigLoad(HWND window) {
 	ACCEL screenCaptureShortcut = { 0 };
 	ConfigGetShortcut(&screenCaptureShortcut, NULL, VK_SNAPSHOT, NULL, L"SCREEN_CAPTURE");
 
