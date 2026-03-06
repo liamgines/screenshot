@@ -17,15 +17,15 @@ static BOOL DirectoryExists(LPCWSTR path) {
 	return (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 
-static BOOL GetExeDirectory(wchar_t *d) {
-	GetModuleFileName(NULL, d, MAX_PATH);
+static BOOL GetExeDirectory(wchar_t *destination) {
+	GetModuleFileName(NULL, destination, MAX_PATH);
 	if (GetLastError()) return FALSE;
-	return (PathCchRemoveFileSpec(d, MAX_PATH) == S_OK);
+	return (PathCchRemoveFileSpec(destination, MAX_PATH) == S_OK);
 }
 
-static BOOL GetConfigPath(wchar_t *d) {
+static BOOL GetConfigPath(wchar_t *destination) {
 	wchar_t exeDirectory[MAX_PATH];
-	return GetExeDirectory(exeDirectory) && (PathCombine(d, exeDirectory, CONFIG_FILE) != NULL);
+	return GetExeDirectory(exeDirectory) && (PathCombine(destination, exeDirectory, CONFIG_FILE) != NULL);
 }
 
 #endif // FILE_INFO_H
