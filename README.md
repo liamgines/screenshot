@@ -46,18 +46,18 @@ screen_capture=0x2c
 close=0x1b
 downscale=1
 upscale=2
-outline_selection=f
+selection_outline=f
 reload_config=r
 open_config=0xc0
 select_all=ctrl+a
 copy=ctrl+c
-open_paint=ctrl+e
+open_in_paint=ctrl+e
 save=ctrl+s
 deselect=ctrl+w
 redo=ctrl+y
 undo=ctrl+z
 
 [output]
-file_path=C:\Users\username\Desktop
-file_prefix=Screenshot_
+screenshot_path=C:\Users\username\Desktop
+screenshot_prefix=Screenshot_
 ```
