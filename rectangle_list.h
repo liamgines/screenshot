@@ -10,10 +10,10 @@ typedef struct RectangleNode {
 	struct RectangleNode *next;
 } RectangleNode;
 
-static void RectangleListFree(RectangleNode *xs) {
-	if (xs) {
-		RectangleNode *next = xs->next;
-		free(xs);
+static void RectangleListFree(RectangleNode *node) {
+	if (node) {
+		RectangleNode *next = node->next;
+		free(node);
 		RectangleListFree(next);
 	}
 }
@@ -22,19 +22,19 @@ static RectangleNode *RectangleListInsertAfter(RectangleNode *prev, RECT data) {
 	if (prev && RectangleEqual(prev->data, data)) return prev;
 
 	// TODO: Remove first node and try inserting again if out of memory
-	RectangleNode *selection = malloc(sizeof(RectangleNode));
-	if (!selection) return prev;
+	RectangleNode *node = malloc(sizeof(RectangleNode));
+	if (!node) return prev;
 
-	selection->data = data;
-	selection->prev = prev;
-	selection->next = NULL;
+	node->data = data;
+	node->prev = prev;
+	node->next = NULL;
 
 	if (prev) {
-		selection->next = prev->next;
-		prev->next = selection;
+		node->next = prev->next;
+		prev->next = node;
 	}
 
-	return selection;
+	return node;
 }
 
 static RectangleNode *RectangleListAdd(RectangleNode *prev, RECT data) {
@@ -42,24 +42,24 @@ static RectangleNode *RectangleListAdd(RectangleNode *prev, RECT data) {
 	if (prev && RectangleEqual(prev->data, data)) return prev;
 
 	// TODO: Remove first node and add try adding again if out of memory
-	RectangleNode *selection = malloc(sizeof(RectangleNode));
-	if (!selection) return prev;
+	RectangleNode *node = malloc(sizeof(RectangleNode));
+	if (!node) return prev;
 
-	selection->data = data;
-	selection->prev = prev;
-	selection->next = NULL;
+	node->data = data;
+	node->prev = prev;
+	node->next = NULL;
 
 	if (prev) {
 		RectangleListFree(prev->next);
-		prev->next = selection;
+		prev->next = node;
 	}
 
-	return selection;
+	return node;
 }
 
-static RectangleNode *RectangleListFirst(RectangleNode *current) {
-	if (!current || !current->prev) return current;
-	return RectangleListFirst(current->prev);
+static RectangleNode *RectangleListFirst(RectangleNode *node) {
+	if (!node || !node->prev) return node;
+	return RectangleListFirst(node->prev);
 }
 
 static RectangleNode *RectangleListUndo(RectangleNode *prev) {
