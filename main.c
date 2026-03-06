@@ -233,10 +233,10 @@ int SaveScreenshotFree(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_
 }
 
 int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
-	static SIZE prevAspectRatio = { 0 };
-	if (!AspectRatioIsPositive(prevAspectRatio)) {
-		prevAspectRatio.cx = 1;
-		prevAspectRatio.cy = 1;
+	static SIZE previousAspectRatio = { 0 };
+	if (!AspectRatioIsPositive(previousAspectRatio)) {
+		previousAspectRatio.cx = 1;
+		previousAspectRatio.cy = 1;
 	}
 
 	SIZE aspectRatio = RectangleAspectRatio(selectionRectangle);
@@ -244,8 +244,8 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 	LONG *selectionRight = RectangleRight(&selectionRectangle);
 	LONG *selectionBottom = RectangleBottom(&selectionRectangle);
 
-	WORD command = LOWORD(wParameter);
-	switch (command) {
+	WORD windowCommand = LOWORD(wParameter);
+	switch (windowCommand) {
 		case ID_CLOSE:
 			ShowWindow(window, SW_HIDE);
 			return 0;
@@ -302,9 +302,9 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 			int j = 0;
 			while (selectionWidth[j++]) {
-				WORD numberKeyCode = selectionWidth[j - 1];
-				inputs[i++] = InputKeyMake(numberKeyCode, FALSE);
-				inputs[i++] = InputKeyMake(numberKeyCode, TRUE);
+				WORD keyCode = selectionWidth[j - 1];
+				inputs[i++] = InputKeyMake(keyCode, FALSE);
+				inputs[i++] = InputKeyMake(keyCode, TRUE);
 			}
 
 			inputs[i++] = InputKeyMake(VK_TAB, FALSE);
@@ -312,9 +312,9 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 			j = 0;
 			while (selectionHeight[j++]) {
-				WORD numberKeyCode = selectionHeight[j - 1];
-				inputs[i++] = InputKeyMake(numberKeyCode, FALSE);
-				inputs[i++] = InputKeyMake(numberKeyCode, TRUE);
+				WORD keyCode = selectionHeight[j - 1];
+				inputs[i++] = InputKeyMake(keyCode, FALSE);
+				inputs[i++] = InputKeyMake(keyCode, TRUE);
 			}
 
 			inputs[i++] = InputKeyMake(VK_RETURN, FALSE);
@@ -332,7 +332,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			inputs[i++] = InputKeyMake(VK_RETURN, TRUE);
 
 			assert(i < ARRAY_LEN(inputs));
-			UINT sent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
+			UINT inputsSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
 
 			return 0;
 
@@ -353,6 +353,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			showSelectionOutline = TRUE;
 			return 0;
 
+		// TODO: Skip over duplicate selections as well
 		case ID_UNDO:
 			if (lastSavedSelection && lastSavedSelection->prev) {
 				lastSavedSelection = RectangleListUndo(lastSavedSelection->prev);
@@ -377,14 +378,14 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_DOWNSCALE: {
 			RECT selectionRectangleCopy = selectionRectangle;
-			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioIsPositive(aspectRatio)) {
-				*selectionRight -= prevAspectRatio.cx;
-				*selectionBottom -= prevAspectRatio.cy;
+			if (!AspectRatioEqual(aspectRatio, previousAspectRatio) && !AspectRatioIsPositive(aspectRatio)) {
+				*selectionRight -= previousAspectRatio.cx;
+				*selectionBottom -= previousAspectRatio.cy;
 			}
 			else {
 				*selectionRight -= aspectRatio.cx;
 				*selectionBottom -= aspectRatio.cy;
-				prevAspectRatio = aspectRatio;
+				previousAspectRatio = aspectRatio;
 			}
 			// Ensure this key can only decrease the size of the selection
 			if (RectangleOutOfBounds(selectionRectangle, screenRectangle) || RectangleArea(selectionRectangle) > RectangleArea(selectionRectangleCopy) || !RectangleArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
@@ -394,14 +395,14 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		case ID_UPSCALE: {
 			RECT selectionRectangleCopy = selectionRectangle;
-			if (!AspectRatioEqual(aspectRatio, prevAspectRatio) && !AspectRatioIsPositive(aspectRatio)) {
-				*selectionRight += prevAspectRatio.cx;
-				*selectionBottom  += prevAspectRatio.cy;
+			if (!AspectRatioEqual(aspectRatio, previousAspectRatio) && !AspectRatioIsPositive(aspectRatio)) {
+				*selectionRight += previousAspectRatio.cx;
+				*selectionBottom  += previousAspectRatio.cy;
 			}
 			else {
 				*selectionRight += aspectRatio.cx;
 				*selectionBottom += aspectRatio.cy;
-				prevAspectRatio = aspectRatio;
+				previousAspectRatio = aspectRatio;
 			}
 			if (RectangleOutOfBounds(selectionRectangle, screenRectangle) || !RectangleArea(selectionRectangle)) selectionRectangle = selectionRectangleCopy;
 
@@ -461,11 +462,11 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 		case ID_OPEN_CONFIG:
 			ShowWindow(window, SW_HIDE);
 
-			HANDLE config = CreateFileW(configPath, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-			if (config == INVALID_HANDLE_VALUE) {
+			HANDLE configHandle = CreateFileW(configPath, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (configHandle == INVALID_HANDLE_VALUE) {
 				return MessageBoxW(window, L"Config file could not be opened.", NULL, MB_OK | MB_ICONERROR);
 			}
-			CloseHandle(config);
+			CloseHandle(configHandle);
 
 			ShellExecuteW(window, L"open", CONFIG_FILE, NULL, exeDirectory, SW_SHOW);
 			return 0;
