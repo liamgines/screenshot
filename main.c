@@ -949,7 +949,7 @@ BOOL ConfigLoad(HWND window) {
 	return TRUE;
 }
 
-int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInstance, _In_ PWSTR commandLine, _In_ int visibility) {
+int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInstance, _In_ PWSTR commandLine, _In_ int showCommand) {
 	// https://stackoverflow.com/a/33531179/32242805
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
 	HANDLE singleInstanceMutex = CreateMutex(NULL, TRUE, L"Single Instance Mutex for Screenshot Application");
@@ -984,8 +984,8 @@ int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInsta
 	RegisterClass(&windowClass);
 
 	HWND window = CreateWindow(windowClass.lpszClassName, L"", WS_POPUP,
-				 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
-				 NULL, NULL, appInstance, NULL);
+							   0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+							   NULL, NULL, appInstance, NULL);
 
 	if (!ConfigLoad(window)) {
 		// TODO: Clean up?
