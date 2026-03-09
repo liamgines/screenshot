@@ -58,6 +58,6 @@ redo=ctrl+y
 undo=ctrl+z
 
 [output]
-screenshot_path=C:\Users\username\Desktop
+screenshot_directory=C:\Users\username\Desktop
 screenshot_prefix=Screenshot_
 ```
