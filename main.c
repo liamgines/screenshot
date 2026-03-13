@@ -82,9 +82,7 @@ HACCEL shortcutTable = NULL;
 
 typedef struct {
 	int selectionArea;
-	RECT selectionRectangle;
-	uint32_t *screenPixels;
-	int screenWidth;
+	uint32_t *selectionPixels;
 	wchar_t *screenshotDirectory;
 	int selectionWidth;
 	int selectionHeight;
@@ -93,15 +91,8 @@ typedef struct {
 DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	SaveScreenshotParameter args = *((SaveScreenshotParameter *) parameter);
 
-	uint32_t* selectionPixels = malloc(sizeof(uint32_t) * args.selectionArea);
-	if (!selectionPixels) return SaveScreenshotFree(selectionPixels, args.screenPixels, args.screenshotDirectory, parameter, TRUE);
-
-	int i = 0;
-	for (int y = args.selectionRectangle.top; y < args.selectionRectangle.bottom; y++) {
-		for (int x = args.selectionRectangle.left; x < args.selectionRectangle.right; x++) {
-			selectionPixels[i] = BGRA32toRGBA32(args.screenPixels[(y * args.screenWidth) + x]);
-			i += 1;
-		}
+	for (int i = 0; i < args.selectionArea; i++) {
+		args.selectionPixels[i] = BGRA32toRGBA32(args.selectionPixels[i]);
 	}
 
 	EnterCriticalSection(&criticalSection);
@@ -115,11 +106,7 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 		PathCombine(screenshotPath, args.screenshotDirectory, screenshotName);
 		if (wcslen(screenshotPath) > MAX_PATH) {
 			// TODO: Double check
-			free(selectionPixels);
-			free(args.screenPixels);
-			free(args.screenshotDirectory);
-			free(parameter);
-
+			SaveScreenshotFree(args.selectionPixels, args.screenshotDirectory, parameter, TRUE);
 			return 1;
 		}
 	} while (FileOrDirectoryExists(screenshotPath));
@@ -127,14 +114,10 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	char convertedScreenshotPath[MAX_PATH + 1] = "";
 	stbiw_convert_wchar_to_utf8(convertedScreenshotPath, MAX_PATH + 1, screenshotPath);
 	int imageWritten = stbi_write_png(convertedScreenshotPath, args.selectionWidth, args.selectionHeight,
-		4, selectionPixels, args.selectionWidth * sizeof(uint32_t));
+		4, args.selectionPixels, args.selectionWidth * sizeof(uint32_t));
 
 	// TODO: Double check
-	free(selectionPixels);
-	free(args.screenPixels);
-	free(args.screenshotDirectory);
-	free(parameter);
-
+	SaveScreenshotFree(args.selectionPixels, args.screenshotDirectory, parameter, FALSE);
 	LeaveCriticalSection(&criticalSection);
 
 	return 0;
@@ -221,9 +204,8 @@ INPUT InputKeyMake(WORD virtualKeyCode, BOOL keyUp) {
 	return input;
 }
 
-int SaveScreenshotFree(uint32_t *selectionPixels, uint32_t *screenPixels, wchar_t *screenshotDirectory, SaveScreenshotParameter *parameter, BOOL error) {
+int SaveScreenshotFree(uint32_t *selectionPixels, wchar_t *screenshotDirectory, SaveScreenshotParameter *parameter, BOOL error) {
 	free(selectionPixels);
-	free(screenPixels);
 	free(screenshotDirectory);
 	free(parameter);
 
@@ -423,8 +405,8 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			// Specify format for the bitmap data to be returned
 			BITMAPINFOHEADER header = { 0 };
 			header.biSize = sizeof(header);
-			header.biWidth = SCREEN_WIDTH;
-			header.biHeight = -SCREEN_HEIGHT;
+			header.biWidth = SELECTION_WIDTH;
+			header.biHeight = -SELECTION_HEIGHT;
 			header.biPlanes = 1;
 			header.biBitCount = 32;
 			header.biCompression = BI_RGB;
@@ -432,20 +414,28 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			info.bmiHeader = header;
 
 			// Capture instance of screen pixels
-			uint32_t *screenPixels = malloc(sizeof(uint32_t) * SCREEN_AREA);
-			if (!screenPixels) return SaveScreenshotFree(NULL, screenPixels, NULL, NULL, TRUE);
+			uint32_t *selectionPixels = malloc(sizeof(uint32_t) * SELECTION_AREA);
+			if (!selectionPixels) return SaveScreenshotFree(selectionPixels, NULL, NULL, TRUE);
 
-			int scanLinesCopied = GetDIBits(memoryDeviceContext, memoryBitmap, 0, SCREEN_HEIGHT, screenPixels, &info, DIB_RGB_COLORS);
+			HDC copyDeviceContext = CreateCompatibleDC(memoryDeviceContext);
+			HBITMAP copyBitmap = CreateCompatibleBitmap(memoryDeviceContext, SELECTION_WIDTH, SELECTION_HEIGHT);
+			HBITMAP previousCopyBitmap = SelectObject(copyDeviceContext, copyBitmap);
+
+			// TODO: Handle BitBlt failure
+			BitBlt(copyDeviceContext, 0, 0, SELECTION_WIDTH, SELECTION_HEIGHT, memoryDeviceContext, selectionRectangle.left, selectionRectangle.top, SRCCOPY);
+			int scanLinesCopied = GetDIBits(copyDeviceContext, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
+
+			SelectObject(copyDeviceContext, previousCopyBitmap);
+			DeleteDC(copyDeviceContext);
+			DeleteObject(copyBitmap);
 
 			SaveScreenshotParameter *parameter = malloc(sizeof(SaveScreenshotParameter));
-			if (!parameter) return SaveScreenshotFree(NULL, screenPixels, NULL, parameter, TRUE);
+			if (!parameter) return SaveScreenshotFree(selectionPixels, NULL, parameter, TRUE);
 
 			parameter->selectionArea = SELECTION_AREA;
-			parameter->selectionRectangle = selectionRectangle;
-			parameter->screenPixels = screenPixels;
-			parameter->screenWidth = SCREEN_WIDTH;
+			parameter->selectionPixels = selectionPixels;
 			wchar_t *screenshotDirectoryCopy = malloc(sizeof(wchar_t) * (wcslen(screenshotDirectory) + 1));
-			if (!screenshotDirectoryCopy) return SaveScreenshotFree(NULL, screenPixels, screenshotDirectoryCopy, parameter, TRUE);
+			if (!screenshotDirectoryCopy) return SaveScreenshotFree(selectionPixels, screenshotDirectoryCopy, parameter, TRUE);
 
 			wcscpy(screenshotDirectoryCopy, screenshotDirectory);
 			parameter->screenshotDirectory = screenshotDirectoryCopy;
@@ -454,7 +444,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 			HANDLE thread = CreateThread(NULL, 0, SaveScreenshot, parameter, 0, NULL);
 			// Clean up
-			if (!thread) return SaveScreenshotFree(NULL, screenPixels, screenshotDirectoryCopy, parameter, TRUE);
+			if (!thread) return SaveScreenshotFree(selectionPixels, screenshotDirectoryCopy, parameter, TRUE);
 			CloseHandle(thread);
 			return 0;
 		}
