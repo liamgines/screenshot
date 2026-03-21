@@ -3,6 +3,8 @@ screenshot
 
 screenshot is a Windows application for taking Desktop screen captures.
 
+![Demo](demo.gif)
+
 Default Controls
 --------
 `PrtSc` displays the selection screen.<br>
