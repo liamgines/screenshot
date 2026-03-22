@@ -337,25 +337,13 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 		// TODO: Skip over duplicate selections as well
 		case ID_UNDO:
-			if (lastSavedSelection && lastSavedSelection->prev) {
-				lastSavedSelection = RectangleListUndo(lastSavedSelection->prev);
-				// Prevent current selection from being empty if possible when the first element is reached and empty
-				if (!RectangleHasArea(lastSavedSelection->data)) lastSavedSelection = RectangleListRedo(lastSavedSelection->next);
-
-				selectionRectangle = lastSavedSelection->data;
-			}
-
+			lastSavedSelection = RectangleListUndo(lastSavedSelection);
+			if (lastSavedSelection) selectionRectangle = lastSavedSelection->data;
 			return 0;
 
 		case ID_REDO:
-			if (lastSavedSelection && lastSavedSelection->next) {
-				lastSavedSelection = RectangleListRedo(lastSavedSelection->next);
-
-				if (!RectangleHasArea(lastSavedSelection->data)) lastSavedSelection = RectangleListUndo(lastSavedSelection->prev);
-
-				selectionRectangle = lastSavedSelection->data;
-			}
-
+			lastSavedSelection = RectangleListRedo(lastSavedSelection);
+			if (lastSavedSelection) selectionRectangle = lastSavedSelection->data;
 			return 0;
 
 		case ID_DOWNSCALE: {

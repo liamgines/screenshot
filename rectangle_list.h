@@ -62,14 +62,32 @@ static RectangleNode *RectangleListFirst(RectangleNode *node) {
 	return RectangleListFirst(node->prev);
 }
 
-static RectangleNode *RectangleListUndo(RectangleNode *prev) {
+static RectangleNode *RectangleListUndoHelper(RectangleNode *prev) {
 	if (!prev || !prev->prev || RectangleHasArea(prev->data)) return prev;
-	return RectangleListUndo(prev->prev);
+	return RectangleListUndoHelper(prev->prev);
 }
 
-static RectangleNode *RectangleListRedo(RectangleNode *next) {
+static RectangleNode *RectangleListRedoHelper(RectangleNode *next) {
 	if (!next || !next->next || RectangleHasArea(next->data)) return next;
-	return RectangleListRedo(next->next);
+	return RectangleListRedoHelper(next->next);
+}
+
+static RectangleNode *RectangleListUndo(RectangleNode *node) {
+	if (node && node->prev) {
+		node = RectangleListUndoHelper(node->prev);
+		// Prevent current selection from being empty if possible when the first element is reached and empty
+		if (!RectangleHasArea(node->data)) node = RectangleListRedoHelper(node->next);
+	}
+	return node;
+}
+
+static RectangleNode *RectangleListRedo(RectangleNode *node) {
+	if (node && node->next) {
+		node = RectangleListRedoHelper(node->next);
+
+		if (!RectangleHasArea(node->data)) node = RectangleListUndoHelper(node->prev);
+	}
+	return node;
 }
 
 #endif // RECTANGLE_LIST_H
