@@ -62,4 +62,7 @@ undo=ctrl+z
 [output]
 screenshot_directory=C:\Users\username\Desktop
 screenshot_prefix=Screenshot_
+
+[display]
+show_aspect_ratio=1
 ```

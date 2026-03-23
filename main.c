@@ -54,6 +54,7 @@ static wchar_t exeDirectory[MAX_PATH];
 static wchar_t configPath[MAX_PATH];
 static CRITICAL_SECTION criticalSection;
 static BOOL showSelectionOutline = FALSE;
+static BOOL showAspectRatio = FALSE;
 static wchar_t screenshotPrefix[MAX_PATH];
 static RectangleNode *lastSavedSelection = NULL;
 
@@ -777,10 +778,12 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 					LineTo(sceneDeviceContext, displayRectangle.left - updateRegion.left, displayRectangle.bottom - updateRegion.top);
 					LineTo(sceneDeviceContext, displayRectangle.left - updateRegion.left, displayRectangle.top - updateRegion.top);
 
-					RECT sceneDisplayRectangle = RectangleMakeFromDimensions((displayRectangle.left - updateRegion.left), (displayRectangle.top - updateRegion.top), RectangleWidth(displayRectangle), RectangleHeight(displayRectangle));
-					wchar_t widthAndHeight[MAX_PATH] = L"";
-					swprintf(widthAndHeight, MAX_PATH, L"%dx%d", RectangleWidth(displayRectangle), RectangleHeight(displayRectangle));
-					DrawTextW(sceneDeviceContext, widthAndHeight, wcslen(widthAndHeight), &sceneDisplayRectangle, DT_SINGLELINE | DT_TOP | DT_LEFT);
+					if (showAspectRatio) {
+						RECT sceneDisplayRectangle = RectangleMakeFromDimensions((displayRectangle.left - updateRegion.left), (displayRectangle.top - updateRegion.top), RectangleWidth(displayRectangle), RectangleHeight(displayRectangle));
+						wchar_t widthAndHeight[MAX_PATH] = L"";
+						swprintf(widthAndHeight, MAX_PATH, L"%dx%d", RectangleWidth(displayRectangle), RectangleHeight(displayRectangle));
+						DrawTextW(sceneDeviceContext, widthAndHeight, wcslen(widthAndHeight), &sceneDisplayRectangle, DT_SINGLELINE | DT_TOP | DT_LEFT);
+					}
 
 					DeleteObject(dottedPen);
 				}
@@ -909,6 +912,8 @@ BOOL ConfigLoad(HWND window) {
 	}
 
 	GetPrivateProfileStringW(L"output", L"SCREENSHOT_PREFIX", L"Screenshot_", screenshotPrefix, MAX_PATH, configPath);
+
+	showAspectRatio = GetPrivateProfileInt(L"display", L"SHOW_ASPECT_RATIO", showAspectRatio, configPath);
 
 	UnregisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE);
 	if (!RegisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE, ConfigShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
