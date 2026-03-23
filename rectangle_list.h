@@ -3,6 +3,7 @@
 
 #include <windows.h>
 #include <stdlib.h>
+#include "rectangle.h"
 
 typedef struct RectangleNode {
 	RECT data;
@@ -62,30 +63,30 @@ static RectangleNode *RectangleListFirst(RectangleNode *node) {
 	return RectangleListFirst(node->prev);
 }
 
-static RectangleNode *RectangleListUndoHelper(RectangleNode *prev) {
-	if (!prev || !prev->prev || RectangleHasArea(prev->data)) return prev;
-	return RectangleListUndoHelper(prev->prev);
+static RectangleNode *RectangleListUndoHelper(RectangleNode *prev, RECT initialSelection) {
+	if (!prev || !prev->prev || (RectangleHasArea(prev->data) && !RectangleEqual(prev->data, initialSelection))) return prev;
+	return RectangleListUndoHelper(prev->prev, initialSelection);
 }
 
-static RectangleNode *RectangleListRedoHelper(RectangleNode *next) {
-	if (!next || !next->next || RectangleHasArea(next->data)) return next;
-	return RectangleListRedoHelper(next->next);
+static RectangleNode *RectangleListRedoHelper(RectangleNode *next, RECT initialSelection) {
+	if (!next || !next->next || (RectangleHasArea(next->data) && !RectangleEqual(next->data, initialSelection))) return next;
+	return RectangleListRedoHelper(next->next, initialSelection);
 }
 
 static RectangleNode *RectangleListUndo(RectangleNode *node) {
 	if (node && node->prev) {
-		node = RectangleListUndoHelper(node->prev);
+		node = RectangleListUndoHelper(node->prev, node->data);
 		// Prevent current selection from being empty if possible when the first element is reached and empty
-		if (!RectangleHasArea(node->data)) node = RectangleListRedoHelper(node->next);
+		if (!RectangleHasArea(node->data)) node = RectangleListRedoHelper(node->next, node->data);
 	}
 	return node;
 }
 
 static RectangleNode *RectangleListRedo(RectangleNode *node) {
 	if (node && node->next) {
-		node = RectangleListRedoHelper(node->next);
+		node = RectangleListRedoHelper(node->next, node->data);
 
-		if (!RectangleHasArea(node->data)) node = RectangleListUndoHelper(node->prev);
+		if (!RectangleHasArea(node->data)) node = RectangleListUndoHelper(node->prev, node->data);
 	}
 	return node;
 }
