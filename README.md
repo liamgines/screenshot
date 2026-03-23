@@ -13,7 +13,7 @@ Default Controls
 `Shift + Left Click` converts a selection to a square.<br>
 `1` proportionally downscales a selection.<br>
 `2` proportionally upscales a selection.<br>
-`F` activates a selection outline.<br>
+`F` shows a selection outline (and aspect ratio if specified).<br>
 `R` reloads the config file.<br>
 `~` opens the config file.<br>
 `Ctrl+A` selects the entire screen.<br>
