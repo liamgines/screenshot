@@ -777,6 +777,11 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 					LineTo(sceneDeviceContext, displayRectangle.left - updateRegion.left, displayRectangle.bottom - updateRegion.top);
 					LineTo(sceneDeviceContext, displayRectangle.left - updateRegion.left, displayRectangle.top - updateRegion.top);
 
+					RECT sceneDisplayRectangle = RectangleMakeFromDimensions((displayRectangle.left - updateRegion.left), (displayRectangle.top - updateRegion.top), RectangleWidth(displayRectangle), RectangleHeight(displayRectangle));
+					wchar_t widthAndHeight[MAX_PATH] = L"";
+					swprintf(widthAndHeight, MAX_PATH, L"%dx%d", RectangleWidth(displayRectangle), RectangleHeight(displayRectangle));
+					DrawTextW(sceneDeviceContext, widthAndHeight, wcslen(widthAndHeight), &sceneDisplayRectangle, DT_SINGLELINE | DT_TOP | DT_LEFT);
+
 					DeleteObject(dottedPen);
 				}
 			}

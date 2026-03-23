@@ -24,6 +24,10 @@ static RECT RectangleMake(LONG left, LONG top, LONG right, LONG bottom) {
 	return (RECT) { .left = left, .top = top, .right = right, .bottom = bottom };
 }
 
+static RECT RectangleMakeFromDimensions(LONG left, LONG top, LONG w, LONG h) {
+	return RectangleMake(left, top, left + w, top + h);
+}
+
 static LONG RectangleWidth(RECT a) {
 	return a.right - a.left;
 }
