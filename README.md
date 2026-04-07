@@ -1,7 +1,7 @@
 screenshot
 ========
 
-screenshot is a Windows application for taking Desktop screen captures.
+A screen capture tool for Windows written in C.
 
 ![Demo](demo.gif)
 
