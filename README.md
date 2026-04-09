@@ -1,7 +1,7 @@
 screenshot
 ========
 
-A screen capture tool for Windows written in C.
+A screen capture tool for Windows.
 
 ![Demo](demo.gif)
 
