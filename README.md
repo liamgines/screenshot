@@ -26,7 +26,7 @@ Default Controls
 
 Installation
 --------
-First, run:
+With Visual Studio installed, you can run:
 
 	vcvarsall.bat x64
 
