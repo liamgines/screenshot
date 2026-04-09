@@ -34,13 +34,13 @@ Then compile with:
 
 	cl /ZI /D _UNICODE /D UNICODE main.c User32.lib Gdi32.lib Shlwapi.lib Shell32.lib Pathcch.lib /Fe:screenshot.exe
 
-If you want to add the app to startup, run `install.bat`.
+If you want to add the executable to startup, run `install.bat`.
 
-Otherwise, manually run the app as admin.
+Otherwise, manually run it as admin.
 
 Configuration
 --------
-To configure the app, make a file called `screenshot.ini` in the same directory as the executable with the following structure:
+To configure keyboard shortcuts and other settings, make a file called `screenshot.ini` in the same directory as the executable with the following structure:
 
 ```
 [keys]
