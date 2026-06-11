@@ -5,6 +5,12 @@ A screen capture tool for Windows.
 
 ![Demo](demo.gif)
 
+Remarks
+--------
+I created this because I was discontent with Lightshot's resizing logic where you always have to start by positioning your cursor on a small anchor point.
+As a result, I made it so you can resize a selection similar to how you resize a window in the operating system, as shown in the demo above.
+On top of that, I implemented other unique features as well, which are listed below.
+
 Default Controls
 --------
 `PrtSc` displays the selection screen.<br>
