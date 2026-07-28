@@ -72,3 +72,7 @@ screenshot_prefix=Screenshot_
 [display]
 show_aspect_ratio=1
 ```
+
+Attributions
+--------
+1. `stb_image_write.h` from [stb](https://github.com/nothings/stb) by Sean Barrett, [The Unlicense](https://unlicense.org/)
