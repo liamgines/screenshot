@@ -17,6 +17,8 @@
 #include "rgba32.h"
 #include "position.h"
 
+#define UNUSED(var) var;
+
 #define VK_V 0x56
 #define VK_E 0x45
 #define VK_H 0x48
@@ -89,6 +91,16 @@ typedef struct {
 	int selectionHeight;
 } SaveScreenshotParameter;
 
+int SaveScreenshotFree(uint32_t *selectionPixels, wchar_t *_screenshotDirectory, SaveScreenshotParameter *parameter, BOOL error) {
+	free(selectionPixels);
+	free(_screenshotDirectory);
+	free(parameter);
+
+	if (error) MessageBoxW(NULL, L"Screenshot could not be saved.", NULL, MB_OK | MB_ICONERROR);
+
+	return 0;
+}
+
 DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 	SaveScreenshotParameter args = *((SaveScreenshotParameter *) parameter);
 
@@ -114,8 +126,10 @@ DWORD WINAPI SaveScreenshot(LPVOID parameter) {
 
 	char convertedScreenshotPath[MAX_PATH + 1] = "";
 	stbiw_convert_wchar_to_utf8(convertedScreenshotPath, MAX_PATH + 1, screenshotPath);
-	int imageWritten = stbi_write_png(convertedScreenshotPath, args.selectionWidth, args.selectionHeight,
+	int _imageWritten = stbi_write_png(convertedScreenshotPath, args.selectionWidth, args.selectionHeight,
 		4, args.selectionPixels, args.selectionWidth * sizeof(uint32_t));
+
+    UNUSED(_imageWritten);
 
 	// TODO: Double check
 	SaveScreenshotFree(args.selectionPixels, args.screenshotDirectory, parameter, FALSE);
@@ -146,7 +160,7 @@ BOOL CopyDataToClipboard(HWND window, char *data, int size, UINT format) {
 	return TRUE;
 }
 
-LRESULT CopySelectionToClipboard(HWND window) {
+int CopySelectionToClipboard(HWND window) {
 	selectionRectangle = RectangleNormalizeTruncate(selectionRectangle, screenRectangle);
 	const int SELECTION_WIDTH = RectangleWidth(selectionRectangle);
 	const int SELECTION_HEIGHT = RectangleHeight(selectionRectangle);
@@ -184,6 +198,7 @@ LRESULT CopySelectionToClipboard(HWND window) {
 
 		*headerPart = header;
 		int scanLinesCopied = GetDIBits(copyDeviceContext, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
+        UNUSED(scanLinesCopied);
 
 		CopyDataToClipboard(window, headerAndPixels, headerAndPixelsSize, CF_DIB);
 	}
@@ -205,17 +220,120 @@ INPUT InputKeyMake(WORD virtualKeyCode, BOOL keyUp) {
 	return input;
 }
 
-int SaveScreenshotFree(uint32_t *selectionPixels, wchar_t *screenshotDirectory, SaveScreenshotParameter *parameter, BOOL error) {
-	free(selectionPixels);
-	free(screenshotDirectory);
-	free(parameter);
+void ConfigGetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, WORD windowCommand, wchar_t *configVariable) {
+	wchar_t lineBuffer[MAX_PATH];
+	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVariable, NULL, lineBuffer, MAX_PATH, configPath);
+	CharUpperW(lineBuffer);
 
-	if (error) MessageBoxW(NULL, L"Screenshot could not be saved.", NULL, MB_OK | MB_ICONERROR);
+	if (!charactersCopied) {
+		*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = windowCommand };
+		return;
+	}
 
-	return 0;
+	*shortcut = (ACCEL) { .fVirt = FVIRTKEY, .key = 0, .cmd = windowCommand };
+
+	size_t i = 0;
+	while (lineBuffer[i]) {
+		if (lineBuffer[i] == '+' || IsCharSpaceW(lineBuffer[i])) {
+			i += 1;
+		}
+		else if (wcsncmp(&lineBuffer[i], SHIFT_STRING, wcslen(SHIFT_STRING)) == 0) {
+			shortcut->fVirt |= FSHIFT;
+			i += wcslen(SHIFT_STRING);
+		}
+		else if (wcsncmp(&lineBuffer[i], CTRL_STRING, wcslen(CTRL_STRING)) == 0) {
+			shortcut->fVirt |= FCONTROL;
+			i += wcslen(CTRL_STRING);
+		}
+		else if (wcsncmp(&lineBuffer[i], ALT_STRING, wcslen(ALT_STRING)) == 0) {
+			shortcut->fVirt |= FALT;
+			i += wcslen(ALT_STRING);
+		}
+		else if (wcsncmp(&lineBuffer[i], HEX_PREFIX, wcslen(HEX_PREFIX)) == 0) {
+			size_t j = i + wcslen(HEX_PREFIX);
+			while (lineBuffer[j]) {
+				if ('0' <= lineBuffer[j] && lineBuffer[j] <= 'F') j += 1;
+				else break;
+			}
+			size_t hexSuffixLength = j - (i + wcslen(HEX_PREFIX));
+			if (hexSuffixLength != 2) {
+				*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = windowCommand };
+				MessageBoxW(NULL, L"Could not assign a key due to an invalid hex key code in the config. Code must be in range 0x01 to 0xFE. Default key was assigned instead.", L"Warning", MB_OK | MB_ICONWARNING);
+				return;
+			}
+			wchar_t hexKeyCode[MAX_PATH];
+			wcsncpy(hexKeyCode, &lineBuffer[i], wcslen(HEX_PREFIX) + hexSuffixLength + 1);
+			int keyCode = 0;
+			StrToIntExW(hexKeyCode, STIF_SUPPORT_HEX, &keyCode);
+			shortcut->key = (WORD) keyCode;
+			i += wcslen(HEX_PREFIX) + hexSuffixLength;
+		}
+		else {
+			shortcut->key = lineBuffer[i];
+			i += 1;
+		}
+	}
 }
 
-int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
+UINT ConfigShortcutModsToHotKeyMods(WORD shortcutMods) {
+	UINT hotkeyMods = 0;
+	hotkeyMods |= (shortcutMods & FSHIFT) ? MOD_SHIFT : 0;
+	hotkeyMods |= (shortcutMods & FCONTROL) ? MOD_CONTROL : 0;
+	hotkeyMods |= (shortcutMods & FALT) ? MOD_ALT : 0;
+	return hotkeyMods;
+}
+
+BOOL ConfigLoad(HWND window) {
+	ACCEL screenCaptureShortcut = { 0 };
+	ConfigGetShortcut(&screenCaptureShortcut, 0, VK_SNAPSHOT, 0, L"SCREEN_CAPTURE");
+
+	// If shortcut table already exists, destroy it
+	if (shortcutTable) {
+		DestroyAcceleratorTable(shortcutTable);
+		shortcutTable = NULL;
+	}
+
+	ACCEL shortcuts[NUM_SHORTCUTS];
+	ConfigGetShortcut(&shortcuts[0], 0, VK_ESCAPE, ID_CLOSE, L"CLOSE");
+	ConfigGetShortcut(&shortcuts[1], 0, 'F', ID_SELECTION_OUTLINE, L"SELECTION_OUTLINE");
+	ConfigGetShortcut(&shortcuts[2], 0, 'R', ID_RELOAD_CONFIG, L"RELOAD_CONFIG");
+	ConfigGetShortcut(&shortcuts[3], FCONTROL, 'E', ID_OPEN_IN_PAINT, L"OPEN_IN_PAINT");
+	ConfigGetShortcut(&shortcuts[4], FCONTROL, 'C', ID_COPY, L"COPY");
+	ConfigGetShortcut(&shortcuts[5], FCONTROL, 'W', ID_DESELECT, L"DESELECT");
+	ConfigGetShortcut(&shortcuts[6], FCONTROL, 'A', ID_SELECT_ALL, L"SELECT_ALL");
+	ConfigGetShortcut(&shortcuts[7], FCONTROL, 'Z', ID_UNDO, L"UNDO");
+	ConfigGetShortcut(&shortcuts[8], FCONTROL, 'Y', ID_REDO, L"REDO");
+	ConfigGetShortcut(&shortcuts[9], 0, '2', ID_UPSCALE, L"UPSCALE");
+	ConfigGetShortcut(&shortcuts[10], 0, '1', ID_DOWNSCALE, L"DOWNSCALE");
+	ConfigGetShortcut(&shortcuts[11], FCONTROL, 'S', ID_SAVE, L"SAVE");
+	ConfigGetShortcut(&shortcuts[12], 0, VK_GRAVE, ID_OPEN_CONFIG, L"OPEN_CONFIG");
+
+	assert(NUM_SHORTCUTS == ARRAY_LEN(shortcuts));
+
+	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LEN(shortcuts));
+
+	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"SCREENSHOT_DIRECTORY", exeDirectory, screenshotDirectory, MAX_PATH, configPath);
+	if (!charactersCopied) wcscpy(screenshotDirectory, exeDirectory);
+
+	if (!DirectoryExists(screenshotDirectory)) {
+		MessageBoxW(NULL, L"Save location could not be found. Check the SCREENSHOT_DIRECTORY variable in your config.", NULL, MB_OK | MB_ICONERROR);
+		return FALSE;
+	}
+
+	GetPrivateProfileStringW(L"output", L"SCREENSHOT_PREFIX", L"Screenshot_", screenshotPrefix, MAX_PATH, configPath);
+
+	showAspectRatio = GetPrivateProfileInt(L"display", L"SHOW_ASPECT_RATIO", showAspectRatio, configPath);
+
+	UnregisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE);
+	if (!RegisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE, ConfigShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
+		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+LRESULT WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter) {
 	static SIZE previousAspectRatio = { 0 };
 	if (!AspectRatioIsPositive(previousAspectRatio)) {
 		previousAspectRatio.cx = 1;
@@ -316,6 +434,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 
 			assert(i < ARRAY_LEN(inputs));
 			UINT inputsSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
+            UNUSED(inputsSent);
 
 			return 0;
 
@@ -413,6 +532,7 @@ int WindowOnShortcut(HWND window, UINT message, WPARAM wParameter, LPARAM lParam
 			// TODO: Handle BitBlt failure
 			BitBlt(copyDeviceContext, 0, 0, SELECTION_WIDTH, SELECTION_HEIGHT, memoryDeviceContext, selectionRectangle.left, selectionRectangle.top, SRCCOPY);
 			int scanLinesCopied = GetDIBits(copyDeviceContext, copyBitmap, 0, SELECTION_HEIGHT, selectionPixels, &info, DIB_RGB_COLORS);
+            UNUSED(scanLinesCopied);
 
 			SelectObject(copyDeviceContext, previousCopyBitmap);
 			DeleteDC(copyDeviceContext);
@@ -557,7 +677,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 	switch (message) {
 		case WM_SHOWWINDOW: {
-			BOOL showWindow = wParameter;
+			BOOL showWindow = (BOOL) wParameter;
 			if (!showWindow) showSelectionOutline = FALSE;
 			return DefWindowProc(window, message, wParameter, lParameter);
 		}
@@ -583,7 +703,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 			// Create screen compatible bitmap and associate it with the memory device context
 			memoryBitmap = CreateCompatibleBitmap(screenDeviceContext, SCREEN_WIDTH, SCREEN_HEIGHT);
-			HBITMAP previousMemoryBitmap = SelectObject(memoryDeviceContext, memoryBitmap);
+			HBITMAP _previousMemoryBitmap = SelectObject(memoryDeviceContext, memoryBitmap);
+            UNUSED(_previousMemoryBitmap);
 
 			return 0;
 
@@ -594,6 +715,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				lastSavedSelection = RectangleListInsertAfter(lastSavedSelection, selectionRectangle);
 				// Transfer color data from screen to memory
 				BOOL transferred = BitBlt(memoryDeviceContext, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screenDeviceContext, 0, 0, SRCCOPY);
+                UNUSED(transferred);
 				if (GetForegroundWindow() != window) SetForegroundWindow(window);
 				SetWindowPos(window, HWND_TOP, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SWP_SHOWWINDOW);
 				// BringWindowToTop(window);
@@ -604,6 +726,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			if (WindowOnShortcut(window, message, wParameter, lParameter) == 0) {
 				RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 				BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
+                UNUSED(repaintWindow);
 				lastSavedSelection = RectangleListAdd(lastSavedSelection, selectionRectangle);
 				return 0;
 			}
@@ -704,6 +827,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 			RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 			BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
+            UNUSED(repaintWindow);
 			return 0;
 		}
 
@@ -714,12 +838,14 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 				if (selectedY) *selectedY = cursorPos.y;
 				RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 				BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
+                UNUSED(repaintWindow);
 			}
 			else if ((wParameter & MK_LBUTTON) && dragSelection) {
 				POINT translation = PositionSubtract(cursorPos, previousCursorPos);
 				selectionRectangle = RectangleTranslate(selectionRectangle, translation);
 				RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 				BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
+                UNUSED(repaintWindow);
 			}
 			previousCursorPos = cursorPos;
 			return 0;
@@ -739,6 +865,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 
 			RECT updateRegion = RectangleUpdateRegion(displayRectangle, selectionRectangle, screenRectangle, SELECTION_HITBOX_SIZE / 2);
 			BOOL repaintWindow = InvalidateRect(window, &updateRegion, TRUE);
+            UNUSED(repaintWindow);
 		}
 
 
@@ -762,6 +889,8 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 			BOOL blended = GdiAlphaBlend(sceneDeviceContext, 0, 0, RectangleWidth(updateRegion), RectangleHeight(updateRegion),
 										 memoryDeviceContext, updateRegion.left, updateRegion.top, RectangleWidth(updateRegion), RectangleHeight(updateRegion), blend);
 
+            UNUSED(blended);
+
 			if (RectangleHasArea(displayRectangle)) {
 				// Display rectangle must be relative to the update region, not the client
 				BitBlt(sceneDeviceContext, (displayRectangle.left - updateRegion.left), (displayRectangle.top - updateRegion.top), displayRectangle.right - displayRectangle.left, displayRectangle.bottom - displayRectangle.top,
@@ -782,7 +911,7 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 						RECT sceneDisplayRectangle = RectangleMakeFromDimensions((displayRectangle.left - updateRegion.left), (displayRectangle.top - updateRegion.top), RectangleWidth(displayRectangle), RectangleHeight(displayRectangle));
 						wchar_t widthAndHeight[MAX_PATH] = L"";
 						swprintf(widthAndHeight, MAX_PATH, L"%dx%d", RectangleWidth(displayRectangle), RectangleHeight(displayRectangle));
-						DrawTextW(sceneDeviceContext, widthAndHeight, wcslen(widthAndHeight), &sceneDisplayRectangle, DT_SINGLELINE | DT_TOP | DT_LEFT);
+						DrawTextW(sceneDeviceContext, widthAndHeight, (int) wcslen(widthAndHeight), &sceneDisplayRectangle, DT_SINGLELINE | DT_TOP | DT_LEFT);
 					}
 
 					DeleteObject(dottedPen);
@@ -811,120 +940,13 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParameter, L
 	}
 }
 
-void ConfigGetShortcut(ACCEL *shortcut, BYTE defaultMods, WORD defaultKey, DWORD windowCommand, wchar_t *configVariable) {
-	wchar_t lineBuffer[MAX_PATH];
-	DWORD charactersCopied = GetPrivateProfileStringW(L"keys", configVariable, NULL, lineBuffer, MAX_PATH, configPath);
-	CharUpperW(lineBuffer);
 
-	if (!charactersCopied) {
-		*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = windowCommand };
-		return;
-	}
 
-	*shortcut = (ACCEL) { .fVirt = FVIRTKEY, .key = 0, .cmd = windowCommand };
-
-	int i = 0;
-	while (lineBuffer[i]) {
-		if (lineBuffer[i] == '+' || IsCharSpaceW(lineBuffer[i])) {
-			i += 1;
-		}
-		else if (wcsncmp(&lineBuffer[i], SHIFT_STRING, wcslen(SHIFT_STRING)) == 0) {
-			shortcut->fVirt |= FSHIFT;
-			i += wcslen(SHIFT_STRING);
-		}
-		else if (wcsncmp(&lineBuffer[i], CTRL_STRING, wcslen(CTRL_STRING)) == 0) {
-			shortcut->fVirt |= FCONTROL;
-			i += wcslen(CTRL_STRING);
-		}
-		else if (wcsncmp(&lineBuffer[i], ALT_STRING, wcslen(ALT_STRING)) == 0) {
-			shortcut->fVirt |= FALT;
-			i += wcslen(ALT_STRING);
-		}
-		else if (wcsncmp(&lineBuffer[i], HEX_PREFIX, wcslen(HEX_PREFIX)) == 0) {
-			int j = i + wcslen(HEX_PREFIX);
-			while (lineBuffer[j]) {
-				if ('0' <= lineBuffer[j] && lineBuffer[j] <= 'F') j += 1;
-				else break;
-			}
-			int hexSuffixLength = j - (i + wcslen(HEX_PREFIX));
-			if (hexSuffixLength != 2) {
-				*shortcut = (ACCEL){ .fVirt = FVIRTKEY | defaultMods, .key = defaultKey, .cmd = windowCommand };
-				MessageBoxW(NULL, L"Could not assign a key due to an invalid hex key code in the config. Code must be in range 0x01 to 0xFE. Default key was assigned instead.", L"Warning", MB_OK | MB_ICONWARNING);
-				return;
-			}
-			wchar_t hexKeyCode[MAX_PATH];
-			wcsncpy(hexKeyCode, &lineBuffer[i], wcslen(HEX_PREFIX) + hexSuffixLength + 1);
-			int keyCode = 0;
-			StrToIntExW(hexKeyCode, STIF_SUPPORT_HEX, &keyCode);
-			shortcut->key = (WORD) keyCode;
-			i += wcslen(HEX_PREFIX) + hexSuffixLength;
-		}
-		else {
-			shortcut->key = lineBuffer[i];
-			i += 1;
-		}
-	}
-}
-
-UINT ConfigShortcutModsToHotKeyMods(WORD shortcutMods) {
-	UINT hotkeyMods = 0;
-	hotkeyMods |= (shortcutMods & FSHIFT) ? MOD_SHIFT : 0;
-	hotkeyMods |= (shortcutMods & FCONTROL) ? MOD_CONTROL : 0;
-	hotkeyMods |= (shortcutMods & FALT) ? MOD_ALT : 0;
-	return hotkeyMods;
-}
-
-BOOL ConfigLoad(HWND window) {
-	ACCEL screenCaptureShortcut = { 0 };
-	ConfigGetShortcut(&screenCaptureShortcut, NULL, VK_SNAPSHOT, NULL, L"SCREEN_CAPTURE");
-
-	// If shortcut table already exists, destroy it
-	if (shortcutTable) {
-		DestroyAcceleratorTable(shortcutTable);
-		shortcutTable = NULL;
-	}
-
-	ACCEL shortcuts[NUM_SHORTCUTS];
-	ConfigGetShortcut(&shortcuts[0], NULL, VK_ESCAPE, ID_CLOSE, L"CLOSE");
-	ConfigGetShortcut(&shortcuts[1], NULL, 'F', ID_SELECTION_OUTLINE, L"SELECTION_OUTLINE");
-	ConfigGetShortcut(&shortcuts[2], NULL, 'R', ID_RELOAD_CONFIG, L"RELOAD_CONFIG");
-	ConfigGetShortcut(&shortcuts[3], FCONTROL, 'E', ID_OPEN_IN_PAINT, L"OPEN_IN_PAINT");
-	ConfigGetShortcut(&shortcuts[4], FCONTROL, 'C', ID_COPY, L"COPY");
-	ConfigGetShortcut(&shortcuts[5], FCONTROL, 'W', ID_DESELECT, L"DESELECT");
-	ConfigGetShortcut(&shortcuts[6], FCONTROL, 'A', ID_SELECT_ALL, L"SELECT_ALL");
-	ConfigGetShortcut(&shortcuts[7], FCONTROL, 'Z', ID_UNDO, L"UNDO");
-	ConfigGetShortcut(&shortcuts[8], FCONTROL, 'Y', ID_REDO, L"REDO");
-	ConfigGetShortcut(&shortcuts[9], NULL, '2', ID_UPSCALE, L"UPSCALE");
-	ConfigGetShortcut(&shortcuts[10], NULL, '1', ID_DOWNSCALE, L"DOWNSCALE");
-	ConfigGetShortcut(&shortcuts[11], FCONTROL, 'S', ID_SAVE, L"SAVE");
-	ConfigGetShortcut(&shortcuts[12], NULL, VK_GRAVE, ID_OPEN_CONFIG, L"OPEN_CONFIG");
-
-	assert(NUM_SHORTCUTS == ARRAY_LEN(shortcuts));
-
-	shortcutTable = CreateAcceleratorTable(shortcuts, ARRAY_LEN(shortcuts));
-
-	DWORD charactersCopied = GetPrivateProfileStringW(L"output", L"SCREENSHOT_DIRECTORY", exeDirectory, screenshotDirectory, MAX_PATH, configPath);
-	if (!charactersCopied) wcscpy(screenshotDirectory, exeDirectory);
-
-	if (!DirectoryExists(screenshotDirectory)) {
-		MessageBoxW(NULL, L"Save location could not be found. Check the SCREENSHOT_DIRECTORY variable in your config.", NULL, MB_OK | MB_ICONERROR);
-		return FALSE;
-	}
-
-	GetPrivateProfileStringW(L"output", L"SCREENSHOT_PREFIX", L"Screenshot_", screenshotPrefix, MAX_PATH, configPath);
-
-	showAspectRatio = GetPrivateProfileInt(L"display", L"SHOW_ASPECT_RATIO", showAspectRatio, configPath);
-
-	UnregisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE);
-	if (!RegisterHotKey(window, ID_HOTKEY_SCREEN_CAPTURE, ConfigShortcutModsToHotKeyMods(screenCaptureShortcut.fVirt), screenCaptureShortcut.key)) {
-		MessageBoxW(window, L"Screen capture key could not be bound.", NULL, MB_OK | MB_ICONERROR);
-		return FALSE;
-	}
-
-	return TRUE;
-}
 
 int WINAPI wWinMain(_In_ HINSTANCE appInstance, _In_opt_ HINSTANCE previousInstance, _In_ PWSTR commandLine, _In_ int showCommand) {
+    UNUSED(previousInstance);
+    UNUSED(commandLine);
+    UNUSED(showCommand);
 	// https://stackoverflow.com/a/33531179/32242805
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createmutexw
 	HANDLE singleInstanceMutex = CreateMutex(NULL, TRUE, L"Single Instance Mutex for Screenshot Application");

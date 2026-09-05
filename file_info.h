@@ -5,6 +5,8 @@
 
 #define CONFIG_FILE L"screenshot.ini"
 
+WINPATHCCHAPI HRESULT PathCchRemoveFileSpec(PWSTR pszPath, size_t cchPath);
+
 // https://stackoverflow.com/a/6218957
 static BOOL FileOrDirectoryExists(LPCWSTR path) {
 	DWORD attributes = GetFileAttributes(path);
